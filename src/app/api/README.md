@@ -130,6 +130,178 @@ eventSource.addEventListener('error', (e) => {
 
 ---
 
+## Task Management
+
+### GET `/api/tasks`
+
+List all active tasks from `squad/tasks/json/*.json`.
+
+**Query Parameters:**
+- `status`: Filter by status (`backlog`, `in-progress`, `completed`)
+- `assigned`: Filter by assigned agent
+- `priority`: Filter by priority (`low`, `medium`, `high`, `critical`)
+
+**Response:**
+```typescript
+interface TasksResponse {
+  tasks: Task[];
+  grouped: {
+    backlog: Task[];
+    inProgress: Task[];
+    completed: Task[];
+  };
+  total: number;
+  timestamp: number;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'backlog' | 'in-progress' | 'completed' | 'archived';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  assigned?: string;
+  deliverable?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  completedBy?: string;
+  tags?: string[];
+  chat: ChatMessage[];
+}
+
+interface ChatMessage {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: number;
+}
+```
+
+---
+
+### POST `/api/tasks`
+
+Create a new task.
+
+**Request Body:**
+```json
+{
+  "title": "Task title (required)",
+  "description": "Task description",
+  "priority": "high",
+  "assigned": "Backend",
+  "deliverable": "What the output should be",
+  "tags": ["api", "urgent"]
+}
+```
+
+---
+
+### GET `/api/tasks/[id]`
+
+Get a single task with its full chat thread.
+
+---
+
+### PATCH `/api/tasks/[id]`
+
+Update a task's status, assignment, or other fields.
+
+**Request Body (all optional):**
+```json
+{
+  "status": "in-progress",
+  "priority": "high",
+  "assigned": "Frontend",
+  "completedBy": "Backend"
+}
+```
+
+---
+
+### DELETE `/api/tasks/[id]`
+
+Archive a task (soft delete — moves to `archived/` directory).
+
+---
+
+### GET `/api/tasks/[id]/chat`
+
+Get the chat thread for a task.
+
+---
+
+### POST `/api/tasks/[id]/chat`
+
+Add a message to the task chat thread.
+
+**Request Body:**
+```json
+{
+  "author": "Backend",
+  "content": "API is ready for testing"
+}
+```
+
+---
+
+## Personal Todos
+
+### GET `/api/todos`
+
+Get Ryan's personal todo list.
+
+**Response:**
+```typescript
+interface TodosResponse {
+  todos: Todo[];
+  active: Todo[];
+  completed: Todo[];
+  counts: {
+    total: number;
+    active: number;
+    completed: number;
+  };
+  timestamp: number;
+}
+
+interface Todo {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+  completedAt?: number;
+}
+```
+
+---
+
+### POST `/api/todos`
+
+Add a new todo item.
+
+**Request Body:**
+```json
+{
+  "text": "Review API contracts"
+}
+```
+
+---
+
+### PATCH `/api/todos/[id]`
+
+Toggle todo completion (zero-token operation — no body required).
+
+---
+
+### DELETE `/api/todos/[id]`
+
+Delete a todo permanently.
+
+---
+
 ## Data Sources
 
 All data is read from Clawdbot's session files:
