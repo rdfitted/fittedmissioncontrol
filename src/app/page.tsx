@@ -9,7 +9,7 @@ import { AlertsPanel } from '@/components/alerts-panel';
 import { usePanelCollapse } from '@/hooks/use-panel-collapse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, MessageSquare } from 'lucide-react';
+import { LayoutGrid, MessageSquare, Activity } from 'lucide-react';
 
 export default function Dashboard() {
   const { collapsed, toggle, setPanel, isHydrated } = usePanelCollapse();
@@ -72,29 +72,22 @@ export default function Dashboard() {
                 <MessageSquare className="w-4 h-4" />
                 Squad Chat
               </TabsTrigger>
+              <TabsTrigger 
+                value="activity"
+                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
+              >
+                <Activity className="w-4 h-4" />
+                Activity
+              </TabsTrigger>
             </TabsList>
 
-            {/* Team Board Tab - Kanban with contained horizontal scroll */}
+            {/* Team Board Tab - Kanban takes full vertical space */}
             <TabsContent 
               value="board" 
               className="flex-1 mt-0 overflow-hidden"
             >
-              <div className="h-full flex flex-col gap-4">
-                {/* Kanban Board - main area with contained scroll */}
-                <div className="flex-1 min-h-0">
-                  <KanbanBoard />
-                </div>
-                
-                {/* Activity Feed - bottom section */}
-                <div className={cn(
-                  'shrink-0 transition-all duration-300',
-                  collapsed.activityFeed ? 'h-12' : 'h-48'
-                )}>
-                  <ActivityFeed 
-                    collapsed={collapsed.activityFeed} 
-                    onToggle={() => toggle('activityFeed')} 
-                  />
-                </div>
+              <div className="h-full">
+                <KanbanBoard />
               </div>
             </TabsContent>
 
@@ -105,6 +98,16 @@ export default function Dashboard() {
             >
               <div className="h-full">
                 <ChatFeedFull />
+              </div>
+            </TabsContent>
+
+            {/* Activity Tab - dedicated activity feed */}
+            <TabsContent 
+              value="activity" 
+              className="flex-1 mt-0 overflow-hidden"
+            >
+              <div className="h-full">
+                <ActivityFeed fullHeight />
               </div>
             </TabsContent>
           </Tabs>

@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, Send, User, MessageSquare, AlertTriangle, Clock } from 'lucide-react';
+import { Check, Send, User, MessageSquare, AlertTriangle, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Task, TaskStatus, statusColors, TaskMessage } from '@/hooks/use-tasks';
+import { Task, TaskStatus, statusColors, TaskMessage, Subtask, SubtaskStatus } from '@/hooks/use-tasks';
 import { formatTimestamp } from '@/lib/format-timestamp';
 
 interface TaskColumnProps {
   task: Task;
   onComplete?: (taskId: string) => void;
   messages?: TaskMessage[];
+  subtasks?: Subtask[];
 }
 
 const priorityColors = {
@@ -128,7 +129,78 @@ function BlockerSection({ reason, blockedAt }: { reason: string; blockedAt?: num
   );
 }
 
-export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps) {
+// Subtask status colors
+const subtaskStatusColors: Record<SubtaskStatus, { dot: string; text: string }> = {
+  backlog: { dot: 'bg-slate-500', text: 'text-slate-400' },
+  active: { dot: 'bg-blue-500', text: 'text-blue-400' },
+  complete: { dot: 'bg-emerald-500', text: 'text-emerald-400' },
+};
+
+function SubtaskItem({ subtask }: { subtask: Subtask }) {
+  const colors = subtaskStatusColors[subtask.status];
+  const assignee = subtask.assigned || subtask.assignee;
+  
+  return (
+    <div className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-zinc-800/50 transition-colors">
+      <div className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
+      <span className={`text-xs flex-1 min-w-0 truncate ${subtask.status === 'complete' ? 'line-through text-zinc-500' : 'text-zinc-300'}`}>
+        {subtask.title}
+      </span>
+      {assignee && (
+        <span className="text-[10px] text-zinc-500 shrink-0">{assignee}</span>
+      )}
+    </div>
+  );
+}
+
+function SubtaskList({ subtasks }: { subtasks: Subtask[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!subtasks || subtasks.length === 0) return null;
+  
+  const completedCount = subtasks.filter(s => s.status === 'complete').length;
+  const totalCount = subtasks.length;
+  const progressPercent = (completedCount / totalCount) * 100;
+  
+  return (
+    <div className="mx-4 mb-3">
+      {/* Collapse trigger with progress */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 w-full py-2 px-2 rounded-lg hover:bg-zinc-800/50 transition-colors group"
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-400" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-400" />
+        )}
+        <span className="text-xs text-zinc-400">
+          <span className="text-emerald-400 font-medium">✓ {completedCount}</span>
+          <span className="text-zinc-500">/{totalCount}</span>
+          <span className="text-zinc-500 ml-1">subtasks</span>
+        </span>
+        {/* Mini progress bar */}
+        <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden ml-2">
+          <div 
+            className="h-full bg-emerald-500/70 transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </button>
+      
+      {/* Expanded subtask list */}
+      {isExpanded && (
+        <div className="mt-1 ml-2 border-l border-zinc-700/50 pl-2 space-y-0.5 max-h-32 overflow-y-auto">
+          {subtasks.map((subtask, idx) => (
+            <SubtaskItem key={subtask.id || idx} subtask={subtask} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TaskColumn({ task, onComplete, messages = [], subtasks }: TaskColumnProps) {
   const [isCompleted, setIsCompleted] = useState(task.status === 'ready');
   const [inputValue, setInputValue] = useState('');
   const [localMessages, setLocalMessages] = useState<TaskMessage[]>(messages);
@@ -225,6 +297,9 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
       {isBlocked && task.blockedBy && (
         <BlockerSection reason={task.blockedBy} blockedAt={task.blockedAt} />
       )}
+
+      {/* Subtasks Section */}
+      <SubtaskList subtasks={subtasks || task.subtasks || []} />
 
       {/* Chat Thread */}
       <div 
