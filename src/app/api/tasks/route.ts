@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllTasks, createTask, Task, Priority } from '@/lib/tasks';
+import { checkFileConflicts, ConflictWarning } from '@/lib/coordination';
 
 /**
  * GET /api/tasks
@@ -66,7 +67,11 @@ export async function GET(request: NextRequest) {
  *   assigned?: string
  *   deliverable?: string
  *   tags?: string[]
+ *   files?: string[]  // Files this task will touch (for coordination)
  * }
+ * 
+ * Response includes `warnings[]` if files conflict with other active tasks.
+ * Warnings don't block creation — they're informational.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -89,6 +94,14 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Check for file conflicts if files specified (warn, don't block)
+    let warnings: ConflictWarning[] = [];
+    const files = Array.isArray(body.files) ? body.files.filter((f: unknown) => typeof f === 'string') : undefined;
+    if (files && files.length > 0) {
+      // Use a temporary ID for conflict checking (task doesn't exist yet)
+      warnings = await checkFileConflicts('__new_task__', files);
+    }
+    
     const task = await createTask({
       title: body.title.trim(),
       description: body.description?.trim(),
@@ -96,7 +109,20 @@ export async function POST(request: NextRequest) {
       assigned: body.assigned?.trim(),
       deliverable: body.deliverable?.trim(),
       tags: Array.isArray(body.tags) ? body.tags : undefined,
+      files,
     });
+    
+    // Return task with warnings if any
+    if (warnings.length > 0) {
+      return NextResponse.json(
+        { 
+          task,
+          warnings,
+          message: `Task created with ${warnings.length} file conflict warning(s)`,
+        }, 
+        { status: 201 }
+      );
+    }
     
     return NextResponse.json(task, { status: 201 });
   } catch (error) {

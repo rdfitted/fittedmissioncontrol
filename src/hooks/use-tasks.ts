@@ -23,6 +23,9 @@ export interface Task {
   date?: string;
   summary?: string;
   messages?: TaskMessage[];
+  // Blocked status fields
+  blockedReason?: string;
+  blockedAt?: string;
 }
 
 export interface TodoItem {
@@ -33,10 +36,16 @@ export interface TodoItem {
 }
 
 // Status color configuration
-export const statusColors: Record<TaskStatus, { bg: string; border: string; dot: string; text: string }> = {
+export const statusColors: Record<TaskStatus, { bg: string; border: string; dot: string; text: string; accent?: string }> = {
   backlog: { bg: 'bg-slate-500/10', border: 'border-l-slate-500', dot: 'bg-slate-500', text: 'text-slate-400' },
   active: { bg: 'bg-blue-500/10', border: 'border-l-blue-500', dot: 'bg-blue-500', text: 'text-blue-400' },
-  blocked: { bg: 'bg-red-500/10', border: 'border-l-red-500', dot: 'bg-red-500', text: 'text-red-400' },
+  blocked: { 
+    bg: 'bg-red-500/15', 
+    border: 'border-l-red-500', 
+    dot: 'bg-red-500', 
+    text: 'text-red-400',
+    accent: 'ring-red-500/30 ring-1'  // Extra visual emphasis for blocked
+  },
   review: { bg: 'bg-amber-500/10', border: 'border-l-amber-500', dot: 'bg-amber-500', text: 'text-amber-400' },
   ready: { bg: 'bg-green-500/10', border: 'border-l-green-500', dot: 'bg-green-500', text: 'text-green-400' },
 };

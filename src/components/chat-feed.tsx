@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown } from 'lucide-react';
+import { formatTimestamp } from '@/lib/format-timestamp';
 
 interface ChatMessage {
   id: string;
@@ -35,37 +36,10 @@ const agentBgColors: Record<string, string> = {
   'Research': 'bg-violet-500/20',
 };
 
-/**
- * Format timestamp for display
- * - Within 24h: relative ("5m ago", "2h ago", "Just now")
- * - Older: [MM-DD HH:MM]
- */
-function formatTimestamp(isoString: string): string {
-  const date = new Date(isoString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  // Within 24 hours - relative time
-  if (diffDays < 1) {
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    return `${diffHours}h ago`;
-  }
-
-  // Older than 24h - [MM-DD HH:MM]
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const mins = String(date.getMinutes()).padStart(2, '0');
-  return `${month}-${day} ${hours}:${mins}`;
-}
-
 function ChatBubble({ message }: { message: ChatMessage }) {
   const agentColor = agentColors[message.agent] || 'text-zinc-400';
   const agentBg = agentBgColors[message.agent] || 'bg-zinc-800';
+  const timestamp = formatTimestamp(message.timestamp);
   
   return (
     <div className="group flex gap-3 py-2.5 px-3 rounded-lg hover:bg-zinc-900/50 transition-all duration-200 ease-out animate-in fade-in slide-in-from-bottom-2">
@@ -75,8 +49,11 @@ function ChatBubble({ message }: { message: ChatMessage }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className={`font-semibold text-sm ${agentColor} transition-colors`}>{message.agent}</span>
-          <span className="text-xs text-zinc-500 opacity-70 group-hover:opacity-100 transition-opacity">
-            {formatTimestamp(message.timestamp)}
+          <span 
+            className="text-xs text-zinc-500 opacity-70 group-hover:opacity-100 transition-opacity cursor-help"
+            title={timestamp.tooltip}
+          >
+            {timestamp.display}
           </span>
         </div>
         <p className="text-sm text-zinc-300 mt-0.5 whitespace-pre-wrap break-words leading-relaxed">{message.message}</p>

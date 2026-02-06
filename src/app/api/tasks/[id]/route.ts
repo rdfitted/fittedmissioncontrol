@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTaskById, updateTask, archiveTask, TaskStatus, Priority } from '@/lib/tasks';
+import { 
+  registerFileOwnership, 
+  releaseFileOwnership, 
+  updateFileOwnership,
+  ConflictWarning 
+} from '@/lib/coordination';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -44,13 +50,23 @@ export async function GET(
  * {
  *   title?: string
  *   description?: string
- *   status?: 'backlog' | 'in-progress' | 'completed'
+ *   status?: 'backlog' | 'in-progress' | 'blocked' | 'completed'
  *   priority?: 'low' | 'medium' | 'high' | 'critical'
  *   assigned?: string
  *   deliverable?: string
  *   completedBy?: string
+ *   blockedBy?: string       // Human-readable blocker reason (recommended when status='blocked')
+ *   blockedAt?: number       // Unix ms timestamp (auto-set if not provided when blocking)
  *   tags?: string[]
+ *   files?: string[]         // Files this task touches (for coordination)
  * }
+ * 
+ * Coordination behavior:
+ * - Status → 'in-progress': Register file ownership, warn on conflicts
+ * - Status → 'completed': Release file ownership
+ * - Files updated: Update coordination.json, warn on conflicts
+ * 
+ * Response includes `warnings[]` if file conflicts detected.
  */
 export async function PATCH(
   request: NextRequest,
@@ -60,11 +76,20 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     
+    // Get current task for comparison
+    const currentTask = await getTaskById(id);
+    if (!currentTask) {
+      return NextResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      );
+    }
+    
     // Validate status if provided
-    const validStatuses: TaskStatus[] = ['backlog', 'in-progress', 'completed'];
+    const validStatuses: TaskStatus[] = ['backlog', 'in-progress', 'blocked', 'completed'];
     if (body.status && !validStatuses.includes(body.status)) {
       return NextResponse.json(
-        { error: 'Invalid status. Must be: backlog, in-progress, or completed' },
+        { error: 'Invalid status. Must be: backlog, in-progress, blocked, or completed' },
         { status: 400 }
       );
     }
@@ -78,6 +103,11 @@ export async function PATCH(
       );
     }
     
+    // Warn if setting blocked status without blockedBy reason
+    if (body.status === 'blocked' && !body.blockedBy) {
+      console.warn(`[PATCH /api/tasks/${id}] Setting status to 'blocked' without blockedBy reason`);
+    }
+    
     // Build update object with only provided fields
     const updates: Parameters<typeof updateTask>[1] = {};
     if (body.title !== undefined) updates.title = body.title.trim();
@@ -87,7 +117,10 @@ export async function PATCH(
     if (body.assigned !== undefined) updates.assigned = body.assigned.trim();
     if (body.deliverable !== undefined) updates.deliverable = body.deliverable.trim();
     if (body.completedBy !== undefined) updates.completedBy = body.completedBy.trim();
+    if (body.blockedBy !== undefined) updates.blockedBy = body.blockedBy.trim();
+    if (body.blockedAt !== undefined) updates.blockedAt = body.blockedAt;
     if (body.tags !== undefined) updates.tags = body.tags;
+    if (body.files !== undefined) updates.files = Array.isArray(body.files) ? body.files : undefined;
     
     const task = await updateTask(id, updates);
     
@@ -96,6 +129,42 @@ export async function PATCH(
         { error: 'Task not found' },
         { status: 404 }
       );
+    }
+    
+    // Handle coordination based on status changes
+    let warnings: ConflictWarning[] = [];
+    const newStatus = body.status;
+    const oldStatus = currentTask.status;
+    const taskFiles = task.files || [];
+    const agent = task.assigned;
+    
+    // Status transition: → in-progress (active)
+    if (newStatus === 'in-progress' && oldStatus !== 'in-progress') {
+      if (taskFiles.length > 0) {
+        const result = await registerFileOwnership(id, taskFiles, agent);
+        warnings = result.warnings;
+        if (warnings.length > 0) {
+          console.warn(`[PATCH /api/tasks/${id}] File conflict warnings:`, warnings);
+        }
+      }
+    }
+    // Status transition: → completed (release ownership)
+    else if (newStatus === 'completed' && oldStatus !== 'completed') {
+      await releaseFileOwnership(id);
+    }
+    // Files updated while task is active
+    else if (body.files !== undefined && oldStatus === 'in-progress') {
+      const result = await updateFileOwnership(id, taskFiles, agent);
+      warnings = result.warnings;
+    }
+    
+    // Return task with warnings if any
+    if (warnings.length > 0) {
+      return NextResponse.json({
+        task,
+        warnings,
+        message: `Task updated with ${warnings.length} file conflict warning(s)`,
+      });
     }
     
     return NextResponse.json(task);
@@ -114,6 +183,7 @@ export async function PATCH(
  * Archive a task (moves to archived/ directory)
  * 
  * This is a soft delete - the task is preserved but marked as archived.
+ * Also releases any file ownership in coordination.json.
  */
 export async function DELETE(
   request: NextRequest,
@@ -129,6 +199,9 @@ export async function DELETE(
         { status: 404 }
       );
     }
+    
+    // Release file ownership when task is archived
+    await releaseFileOwnership(id);
     
     return NextResponse.json({
       message: 'Task archived successfully',

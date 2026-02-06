@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, Send, User, MessageSquare } from 'lucide-react';
+import { Check, Send, User, MessageSquare, AlertTriangle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Task, TaskStatus, statusColors, TaskMessage } from '@/hooks/use-tasks';
+import { formatTimestamp } from '@/lib/format-timestamp';
 
 interface TaskColumnProps {
   task: Task;
@@ -28,17 +29,17 @@ const agentColors: Record<string, string> = {
   'Research': 'text-violet-400',
 };
 
-function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
+function formatBlockedDuration(blockedAt: string): { text: string; isUrgent: boolean } {
+  const date = new Date(blockedAt);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m`;
-  if (diffHours < 24) return `${diffHours}h`;
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  if (diffHours < 1) return { text: 'Blocked <1h', isUrgent: false };
+  if (diffHours < 24) return { text: `Blocked ${diffHours}h`, isUrgent: false };
+  if (diffDays === 1) return { text: 'Blocked 1 day', isUrgent: false };
+  return { text: `Blocked ${diffDays} days`, isUrgent: diffDays > 3 };
 }
 
 function CheckboxAnimated({ 
@@ -73,6 +74,7 @@ function CheckboxAnimated({
 
 function ChatMessage({ message }: { message: TaskMessage }) {
   const agentColor = agentColors[message.agent] || 'text-zinc-400';
+  const timestamp = formatTimestamp(message.timestamp);
   
   return (
     <div className="flex gap-2 py-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
@@ -82,11 +84,45 @@ function ChatMessage({ message }: { message: TaskMessage }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-1.5">
           <span className={`text-xs font-medium ${agentColor}`}>{message.agent}</span>
-          <span className="text-[10px] text-zinc-600">{formatTimestamp(message.timestamp)}</span>
+          <span 
+            className="text-[10px] text-zinc-600 cursor-help"
+            title={timestamp.tooltip}
+          >
+            {timestamp.display}
+          </span>
         </div>
         <p className="text-xs text-zinc-400 mt-0.5 whitespace-pre-wrap break-words leading-relaxed">
           {message.message}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function BlockerSection({ reason, blockedAt }: { reason: string; blockedAt?: string }) {
+  const duration = blockedAt ? formatBlockedDuration(blockedAt) : null;
+  
+  return (
+    <div className="mx-4 mb-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+              Blocked by
+            </span>
+          </div>
+          <p className="text-sm text-amber-200/90 leading-relaxed">
+            "{reason}"
+          </p>
+          {duration && (
+            <div className={`flex items-center gap-1 mt-2 text-xs ${duration.isUrgent ? 'text-red-400' : 'text-amber-400/70'}`}>
+              <Clock className="w-3 h-3" />
+              <span>{duration.text}</span>
+              {duration.isUrgent && <span className="text-red-400 font-medium">⚠️ Needs attention</span>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -98,6 +134,7 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
   const [localMessages, setLocalMessages] = useState<TaskMessage[]>(messages);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const colors = statusColors[task.status];
+  const isBlocked = task.status === 'blocked';
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -143,6 +180,7 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
         border-l-4 ${colors.border}
         scroll-snap-align-start
         transition-all duration-200 hover:border-zinc-700
+        ${isBlocked ? 'ring-1 ring-red-500/30 bg-red-500/5' : ''}
       `}
     >
       {/* Task Header */}
@@ -152,9 +190,10 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-mono text-zinc-500">{task.id}</span>
-              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${colors.bg}`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
-                <span className={colors.text}>{task.status}</span>
+              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${colors.bg} ${isBlocked ? 'ring-1 ring-red-500/50' : ''}`}>
+                <div className={`rounded-full ${colors.dot} ${isBlocked ? 'w-2 h-2 animate-pulse' : 'w-1.5 h-1.5'}`} />
+                {isBlocked && <AlertTriangle className="w-3 h-3 text-red-400" />}
+                <span className={`${colors.text} ${isBlocked ? 'font-semibold uppercase' : ''}`}>{task.status}</span>
               </div>
             </div>
             <h3 className={`font-medium text-sm ${isCompleted ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
@@ -181,6 +220,11 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
           )}
         </div>
       </div>
+
+      {/* Blocker Section - shown only for blocked tasks */}
+      {isBlocked && task.blockedReason && (
+        <BlockerSection reason={task.blockedReason} blockedAt={task.blockedAt} />
+      )}
 
       {/* Chat Thread */}
       <div 

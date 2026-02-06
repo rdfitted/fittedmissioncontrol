@@ -9,7 +9,7 @@ export const TODOS_FILE = path.join(TASKS_DIR, 'todos.json');
 
 // ============ Types ============
 
-export type TaskStatus = 'backlog' | 'in-progress' | 'completed' | 'archived';
+export type TaskStatus = 'backlog' | 'in-progress' | 'blocked' | 'completed' | 'archived';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface ChatMessage {
@@ -31,7 +31,10 @@ export interface Task {
   updatedAt: number;     // Unix ms
   completedAt?: number;
   completedBy?: string;
+  blockedBy?: string;    // Human-readable blocker reason
+  blockedAt?: number;    // Unix ms timestamp when blocked started
   tags?: string[];
+  files?: string[];      // Files this task touches (for coordination)
   chat: ChatMessage[];   // Embedded chat thread
 }
 
@@ -132,6 +135,7 @@ export async function createTask(data: {
   assigned?: string;
   deliverable?: string;
   tags?: string[];
+  files?: string[];      // Files this task will touch (for coordination)
 }): Promise<Task> {
   await ensureDirs();
   
@@ -145,6 +149,7 @@ export async function createTask(data: {
     assigned: data.assigned,
     deliverable: data.deliverable,
     tags: data.tags || [],
+    files: data.files,
     createdAt: now,
     updatedAt: now,
     chat: [],
@@ -156,7 +161,7 @@ export async function createTask(data: {
   return task;
 }
 
-export async function updateTask(id: string, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'completedBy'>>): Promise<Task | null> {
+export async function updateTask(id: string, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt'>>): Promise<Task | null> {
   const task = await getTaskById(id);
   if (!task) return null;
   
@@ -170,6 +175,16 @@ export async function updateTask(id: string, updates: Partial<Pick<Task, 'title'
   // If marking as completed, set completedAt
   if (updates.status === 'completed' && task.status !== 'completed') {
     updatedTask.completedAt = now;
+  }
+  
+  // Handle blocked status transitions
+  if (updates.status === 'blocked' && task.status !== 'blocked') {
+    // Auto-set blockedAt when transitioning TO blocked
+    updatedTask.blockedAt = now;
+  } else if (updates.status && updates.status !== 'blocked' && task.status === 'blocked') {
+    // Clear blocked fields when transitioning FROM blocked
+    updatedTask.blockedBy = undefined;
+    updatedTask.blockedAt = undefined;
   }
   
   const filePath = path.join(TASKS_JSON_DIR, `${id}.json`);

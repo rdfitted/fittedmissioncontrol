@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, ChevronUp, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatTimestamp } from '@/lib/format-timestamp';
 
 interface ActivityItem {
   type: 'file_change' | 'task_update' | 'chat_message';
@@ -24,22 +25,9 @@ const typeIcons: Record<ActivityItem['type'], { icon: string; color: string }> =
   chat_message: { icon: '💬', color: 'text-green-400' },
 };
 
-function formatTimeAgo(timestamp: string): string {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diffMs = now.getTime() - then.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
-}
-
 function ActivityRow({ activity }: { activity: ActivityItem }) {
   const { icon, color } = typeIcons[activity.type];
+  const timestamp = formatTimestamp(activity.timestamp);
   
   return (
     <div className="flex items-start gap-3 py-2 px-3 rounded-lg hover:bg-zinc-900/50 transition-colors">
@@ -48,7 +36,12 @@ function ActivityRow({ activity }: { activity: ActivityItem }) {
         <p className="text-sm text-zinc-300">{activity.description}</p>
         <p className="text-xs text-zinc-600 truncate">{activity.file}</p>
       </div>
-      <span className="text-xs text-zinc-600 shrink-0">{formatTimeAgo(activity.timestamp)}</span>
+      <span 
+        className="text-xs text-zinc-600 shrink-0 cursor-help"
+        title={timestamp.tooltip}
+      >
+        {timestamp.display}
+      </span>
     </div>
   );
 }
