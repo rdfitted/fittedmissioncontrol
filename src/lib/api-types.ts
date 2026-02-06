@@ -142,7 +142,7 @@ export type StreamEvent =
 // Task Types
 // ============================================================
 
-export type TaskStatus = 'backlog' | 'in-progress' | 'completed' | 'archived';
+export type TaskStatus = 'backlog' | 'in-progress' | 'blocked' | 'review' | 'ready' | 'completed' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface ChatMessage {

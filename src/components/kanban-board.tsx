@@ -245,7 +245,7 @@ function StatusLegend() {
 }
 
 export function KanbanBoard() {
-  const { tasks, loading, error, refresh, completeTask, updateTaskStatus, reorderTasks } = useTasks();
+  const { tasks, loading, error, refresh, completeTask, updateTaskStatus, reorderTasks, toggleSubtask, addSubtask } = useTasks();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -619,6 +619,8 @@ export function KanbanBoard() {
         open={modalOpen}
         onOpenChange={handleModalOpenChange}
         onStatusChange={handleStatusChange}
+        onToggleSubtask={toggleSubtask}
+        onAddSubtask={addSubtask}
       />
     </>
   );

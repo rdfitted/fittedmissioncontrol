@@ -9,7 +9,7 @@ export const TODOS_FILE = path.join(TASKS_DIR, 'todos.json');
 
 // ============ Types ============
 
-export type TaskStatus = 'backlog' | 'in-progress' | 'blocked' | 'completed' | 'archived';
+export type TaskStatus = 'backlog' | 'in-progress' | 'blocked' | 'review' | 'ready' | 'completed' | 'archived';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 export type TaskCategory = 'dev' | 'marketing' | 'both';
 
@@ -409,4 +409,66 @@ export async function deleteTodo(id: string): Promise<boolean> {
   await saveTodos(list);
   
   return true;
+}
+
+// ============ Subtask Operations ============
+
+export interface Subtask {
+  id: string;
+  title: string;
+  status: 'backlog' | 'active' | 'complete';
+  assigned?: string;
+  assignee?: string;
+  delegatedBy?: string;
+  delegatedAt?: number;
+}
+
+export async function toggleSubtask(taskId: string, subtaskId: string): Promise<Subtask | null> {
+  const task = await getTaskById(taskId);
+  if (!task) return null;
+  
+  // Cast to include subtasks (may not be in TS interface but exists in JSON)
+  const taskWithSubtasks = task as Task & { subtasks?: Subtask[] };
+  if (!taskWithSubtasks.subtasks || !Array.isArray(taskWithSubtasks.subtasks)) {
+    return null;
+  }
+  
+  const subtask = taskWithSubtasks.subtasks.find(s => s.id === subtaskId);
+  if (!subtask) return null;
+  
+  // Toggle status: complete ↔ backlog (or active → complete)
+  subtask.status = subtask.status === 'complete' ? 'backlog' : 'complete';
+  
+  // Update task timestamp
+  taskWithSubtasks.updatedAt = Date.now();
+  
+  const filePath = path.join(TASKS_JSON_DIR, `${taskId}.json`);
+  await fs.writeFile(filePath, JSON.stringify(taskWithSubtasks, null, 2));
+  
+  return subtask;
+}
+
+export async function addSubtask(taskId: string, title: string, assigned?: string): Promise<Subtask | null> {
+  const task = await getTaskById(taskId);
+  if (!task) return null;
+  
+  const taskWithSubtasks = task as Task & { subtasks?: Subtask[] };
+  if (!taskWithSubtasks.subtasks) {
+    taskWithSubtasks.subtasks = [];
+  }
+  
+  const subtask: Subtask = {
+    id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title,
+    status: 'backlog',
+    assigned,
+  };
+  
+  taskWithSubtasks.subtasks.push(subtask);
+  taskWithSubtasks.updatedAt = Date.now();
+  
+  const filePath = path.join(TASKS_JSON_DIR, `${taskId}.json`);
+  await fs.writeFile(filePath, JSON.stringify(taskWithSubtasks, null, 2));
+  
+  return subtask;
 }

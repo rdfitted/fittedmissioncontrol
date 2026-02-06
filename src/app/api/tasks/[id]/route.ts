@@ -88,10 +88,10 @@ export async function PATCH(
     }
     
     // Validate status if provided
-    const validStatuses: TaskStatus[] = ['backlog', 'in-progress', 'blocked', 'completed'];
+    const validStatuses: TaskStatus[] = ['backlog', 'in-progress', 'blocked', 'review', 'ready', 'completed'];
     if (body.status && !validStatuses.includes(body.status)) {
       return NextResponse.json(
-        { error: 'Invalid status. Must be: backlog, in-progress, blocked, or completed' },
+        { error: 'Invalid status. Must be: backlog, in-progress, blocked, review, ready, or completed' },
         { status: 400 }
       );
     }

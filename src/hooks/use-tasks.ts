@@ -189,7 +189,7 @@ export function useTasks(refreshInterval = 10000) {
       'blocked': 'blocked',
       'review': 'review',
       'ready': 'ready',
-      'complete': 'complete',
+      'complete': 'completed',
     };
     const backendStatus = backendStatusMap[newStatus] || newStatus;
     
@@ -225,7 +225,7 @@ export function useTasks(refreshInterval = 10000) {
       'blocked': 'blocked',
       'review': 'review',
       'ready': 'ready',
-      'complete': 'complete',
+      'complete': 'completed',
     };
 
     // Optimistic update
@@ -259,6 +259,60 @@ export function useTasks(refreshInterval = 10000) {
     }
   }, [fetchTasks]);
 
+  // Toggle a subtask's completion status
+  const toggleSubtask = useCallback(async (taskId: string, subtaskId: string) => {
+    // Optimistic update
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      const subtasks = (t as any).subtasks as Subtask[] | undefined;
+      if (!subtasks) return t;
+      return {
+        ...t,
+        subtasks: subtasks.map(s => 
+          s.id === subtaskId 
+            ? { ...s, status: s.status === 'complete' ? 'backlog' as SubtaskStatus : 'complete' as SubtaskStatus }
+            : s
+        ),
+      };
+    }));
+    
+    // Persist to API
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtask`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtaskId }),
+      });
+      if (!res.ok) {
+        console.error('Failed to toggle subtask:', await res.text());
+        fetchTasks();
+      }
+    } catch (err) {
+      console.error('Failed to toggle subtask:', err);
+      fetchTasks();
+    }
+  }, [fetchTasks]);
+
+  // Add a new subtask
+  const addSubtask = useCallback(async (taskId: string, title: string, assigned?: string) => {
+    // Persist to API first (need the generated ID)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, assigned }),
+      });
+      if (!res.ok) {
+        console.error('Failed to add subtask:', await res.text());
+        return;
+      }
+      // Refresh to get the new subtask with proper ID
+      fetchTasks();
+    } catch (err) {
+      console.error('Failed to add subtask:', err);
+    }
+  }, [fetchTasks]);
+
   return { 
     tasks, 
     loading, 
@@ -267,6 +321,8 @@ export function useTasks(refreshInterval = 10000) {
     updateTaskStatus,
     completeTask,
     reorderTasks,
+    toggleSubtask,
+    addSubtask,
   };
 }
 
