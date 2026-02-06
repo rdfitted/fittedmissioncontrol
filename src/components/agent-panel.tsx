@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { AgentHierarchy } from '@/components/agent-hierarchy';
 import { AgentLifecycle } from '@/components/agent-lifecycle';
 import { SquadRoster } from '@/components/squad-roster';
@@ -261,7 +262,8 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-200px)]">
+      <ScrollArea className="h-[calc(100vh-200px)]">
+      <CardContent className="space-y-4">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
@@ -325,6 +327,7 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
           </>
         )}
       </CardContent>
+      </ScrollArea>
     </Card>
   );
 }
