@@ -28,7 +28,7 @@ export default function Dashboard() {
               ⬡
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Mission Control</h1>
+              <h1 className="text-xl font-bold tracking-tight">The Squad</h1>
               <p className="text-xs text-zinc-500">Fitted Automation • Agent Squad</p>
             </div>
           </div>

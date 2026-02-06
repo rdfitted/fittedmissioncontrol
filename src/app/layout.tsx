@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mission Control | Fitted Automation",
+  title: "The Squad | Fitted Automation",
   description: "Agent Squad Dashboard",
 };
 
