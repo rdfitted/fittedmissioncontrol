@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTasks, Task, TaskStatus, TaskCategory, statusColors } from '@/hooks/use-tasks';
 import { RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, Check, User, MessageSquare, GripVertical } from 'lucide-react';
@@ -262,6 +262,16 @@ export function KanbanBoard() {
       setLocalTasks(tasks);
     }
   }, [tasks, activeTask]);
+
+  // Keep selectedTask in sync with latest task data (for live subtask updates)
+  useEffect(() => {
+    if (selectedTask && modalOpen) {
+      const updated = tasks.find(t => t.id === selectedTask.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedTask)) {
+        setSelectedTask(updated);
+      }
+    }
+  }, [tasks, selectedTask?.id, modalOpen]);
 
   // DnD sensors
   const sensors = useSensors(
