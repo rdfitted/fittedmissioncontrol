@@ -129,6 +129,9 @@ export function useTasks(refreshInterval = 10000) {
   
   // Snapshot for revert on cancel
   const preDragSnapshot = useRef<Task[] | null>(null);
+  
+  // Ref to track drag state for polling guard (avoids stale closure)
+  const isDraggingRef = useRef(false);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -181,7 +184,10 @@ export function useTasks(refreshInterval = 10000) {
         ];
       }
       
-      setTasks(transformedTasks);
+      // Guard: don't overwrite state during drag (would reset optimistic positions)
+      if (!isDraggingRef.current) {
+        setTasks(transformedTasks);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -340,6 +346,7 @@ export function useTasks(refreshInterval = 10000) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
+    isDraggingRef.current = true;
     preDragSnapshot.current = [...tasks];
     setDragState({
       activeTaskId: taskId,
@@ -357,28 +364,68 @@ export function useTasks(refreshInterval = 10000) {
       const taskIndex = updated.findIndex(t => t.id === dragState.activeTaskId);
       if (taskIndex === -1) return prev;
       
-      // Update task status and position
+      const movingTask = updated[taskIndex];
+      const oldStatus = movingTask.status;
+      
+      // Update the dragged task's status and position
       updated[taskIndex] = {
-        ...updated[taskIndex],
+        ...movingTask,
         status: targetStatus,
         position: targetPosition,
       };
+      
+      // Recompute sibling positions in affected columns
+      const affectedStatuses = new Set<TaskStatus>([targetStatus]);
+      if (oldStatus !== targetStatus) {
+        affectedStatuses.add(oldStatus);
+      }
+      
+      affectedStatuses.forEach(status => {
+        // Get all tasks in this column, excluding the moving task
+        const columnTasks = updated
+          .map((t, i) => ({ task: t, index: i }))
+          .filter(({ task }) => task.status === status && task.id !== dragState.activeTaskId)
+          .sort((a, b) => (a.task.position ?? 999999) - (b.task.position ?? 999999));
+        
+        // Reassign sequential positions, leaving gap for dragged task
+        let pos = 0;
+        columnTasks.forEach(({ task, index }) => {
+          // Skip position where dragged task will go
+          if (status === targetStatus && pos === targetPosition) {
+            pos++;
+          }
+          updated[index] = { ...task, position: pos };
+          pos++;
+        });
+      });
       
       return updated;
     });
   }, [dragState.activeTaskId]);
 
   // End drag - persists to API, clears drag state
-  const endDrag = useCallback(async () => {
-    if (!dragState.activeTaskId) return;
+  // Optional: pass targetTaskId and targetStatus from DragEndEvent for accurate final position
+  const endDrag = useCallback(async (targetTaskId?: string, targetStatus?: TaskStatus) => {
+    if (!dragState.activeTaskId) {
+      isDraggingRef.current = false;
+      return;
+    }
     
     const task = tasks.find(t => t.id === dragState.activeTaskId);
-    if (!task) return;
+    if (!task) {
+      isDraggingRef.current = false;
+      preDragSnapshot.current = null;
+      setDragState({ activeTaskId: null, originalColumn: null, originalPosition: null });
+      return;
+    }
+    
+    // If target provided from DragEndEvent, apply final position
+    const finalStatus = targetStatus || task.status;
     
     // Collect all position changes in affected columns
     const affectedStatuses = new Set<TaskStatus>();
-    affectedStatuses.add(task.status);
-    if (dragState.originalColumn && dragState.originalColumn !== task.status) {
+    affectedStatuses.add(finalStatus);
+    if (dragState.originalColumn && dragState.originalColumn !== finalStatus) {
       affectedStatuses.add(dragState.originalColumn);
     }
     
@@ -400,21 +447,23 @@ export function useTasks(refreshInterval = 10000) {
       if (updates.length > 0) {
         await reorderTasks(updates);
       }
-      preDragSnapshot.current = null;
-      setDragState({ activeTaskId: null, originalColumn: null, originalPosition: null });
     } catch (error) {
-      // Revert on failure
+      // Revert on failure - log but don't re-throw (caller doesn't catch)
+      console.error('Failed to persist drag reorder:', error);
       if (preDragSnapshot.current) {
         setTasks(preDragSnapshot.current);
       }
+    } finally {
+      // Always clear drag state
+      isDraggingRef.current = false;
       preDragSnapshot.current = null;
       setDragState({ activeTaskId: null, originalColumn: null, originalPosition: null });
-      throw error;
     }
   }, [dragState.activeTaskId, dragState.originalColumn, tasks, reorderTasks]);
 
   // Cancel drag - reverts to pre-drag state
   const cancelDrag = useCallback(() => {
+    isDraggingRef.current = false;
     if (preDragSnapshot.current) {
       setTasks(preDragSnapshot.current);
     }

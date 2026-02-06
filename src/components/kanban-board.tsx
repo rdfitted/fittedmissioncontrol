@@ -19,7 +19,6 @@ import {
   DragOverEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -446,8 +445,24 @@ export function KanbanBoard() {
     }
   };
 
-  const handleDragEnd = () => {
-    endDrag();
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) {
+      // Dropped outside any droppable - cancel
+      cancelDrag();
+      return;
+    }
+    
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    
+    // Determine final target status from where we dropped
+    const overTask = tasks.find(t => t.id === overId);
+    const targetStatus = overTask?.status || 
+      (over.data.current as any)?.sortable?.containerId as TaskStatus;
+    
+    endDrag(overId, targetStatus);
   };
 
   const handleDragCancel = () => {
