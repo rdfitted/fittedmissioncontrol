@@ -130,8 +130,8 @@ export function useTasks(refreshInterval = 10000) {
               : msg.timestamp,
           })),
           // Map subtasks (normalize assignee/assigned)
-          subtasks: (t.subtasks || []).map((sub: any) => ({
-            id: sub.id || `sub-${Math.random().toString(36).slice(2)}`,
+          subtasks: (t.subtasks || []).map((sub: any, index: number) => ({
+            id: sub.id || `${t.id}-sub-${index}`,
             title: sub.title,
             status: sub.status || 'backlog',
             assigned: sub.assigned || sub.assignee,
