@@ -83,14 +83,34 @@ export function useTasks(refreshInterval = 10000) {
     try {
       const res = await fetch('/api/tasks');
       if (!res.ok) throw new Error('Failed to fetch tasks');
-      const data: LegacyTasksData = await res.json();
+      const data = await res.json();
       
-      // Transform legacy format to new format with status
-      const transformedTasks: Task[] = [
-        ...data.backlog.map(t => ({ ...t, status: 'backlog' as TaskStatus, priority: t.priority as Task['priority'] })),
-        ...data.inProgress.map(t => ({ ...t, status: 'active' as TaskStatus, priority: t.priority as Task['priority'] })),
-        ...data.completed.map(t => ({ ...t, status: 'ready' as TaskStatus, priority: t.priority as Task['priority'] })),
-      ];
+      // Handle new API format: { tasks, grouped, total } or legacy format
+      let transformedTasks: Task[] = [];
+      
+      if (data.tasks && Array.isArray(data.tasks)) {
+        // New API format - map status values
+        transformedTasks = data.tasks.map((t: any) => ({
+          ...t,
+          status: mapStatus(t.status || 'backlog'),
+          priority: t.priority as Task['priority'],
+        }));
+      } else if (data.grouped) {
+        // New API format with grouped object
+        const grouped = data.grouped;
+        transformedTasks = [
+          ...(grouped.backlog || []).map((t: any) => ({ ...t, status: 'backlog' as TaskStatus, priority: t.priority as Task['priority'] })),
+          ...(grouped.inProgress || []).map((t: any) => ({ ...t, status: 'active' as TaskStatus, priority: t.priority as Task['priority'] })),
+          ...(grouped.completed || []).map((t: any) => ({ ...t, status: 'ready' as TaskStatus, priority: t.priority as Task['priority'] })),
+        ];
+      } else if (data.backlog || data.inProgress || data.completed) {
+        // Legacy format
+        transformedTasks = [
+          ...(data.backlog || []).map((t: any) => ({ ...t, status: 'backlog' as TaskStatus, priority: t.priority as Task['priority'] })),
+          ...(data.inProgress || []).map((t: any) => ({ ...t, status: 'active' as TaskStatus, priority: t.priority as Task['priority'] })),
+          ...(data.completed || []).map((t: any) => ({ ...t, status: 'ready' as TaskStatus, priority: t.priority as Task['priority'] })),
+        ];
+      }
       
       setTasks(transformedTasks);
       setError(null);
