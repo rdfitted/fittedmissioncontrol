@@ -39,12 +39,15 @@ export interface Task {
   // Blocked status fields
   blockedBy?: string;      // Blocker reason (matches backend)
   blockedAt?: number;      // Unix ms timestamp (matches backend)
-// Subtasks
+  // Subtasks
   subtasks?: Subtask[];
   // Position for ordering within columns (lower = higher priority = top)
   position?: number;
   // Category for filtering (dev, marketing, or both)
   category?: TaskCategory;
+  // Timestamps for sorting
+  created?: string;        // ISO timestamp or date string
+  updated?: string;        // ISO timestamp or date string
 }
 
 export interface TodoItem {

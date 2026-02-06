@@ -301,7 +301,7 @@ export function KanbanBoard() {
     });
   }, [displayTasks, categoryFilter]);
 
-  // Group tasks by status with position-based sorting
+  // Group tasks by status with multi-criteria sorting
   const tasksByStatus: Record<TaskStatus, Task[]> = useMemo(() => {
     const grouped: Record<TaskStatus, Task[]> = {
       backlog: [],
@@ -318,12 +318,46 @@ export function KanbanBoard() {
       }
     });
 
-    // Sort each column by position (lower = higher priority = top)
+    // Priority weight: High=0, Medium=1, Low=2, undefined=3
+    const priorityWeight = (p?: 'High' | 'Medium' | 'Low') => {
+      if (p === 'High') return 0;
+      if (p === 'Medium') return 1;
+      if (p === 'Low') return 2;
+      return 3;
+    };
+
+    // Parse date to timestamp, fallback to 0
+    const parseDate = (dateStr?: string): number => {
+      if (!dateStr) return 0;
+      const ts = Date.parse(dateStr);
+      return isNaN(ts) ? 0 : ts;
+    };
+
+    // Sort each column: priority desc, then position, then date
     Object.keys(grouped).forEach((status) => {
+      const isBacklog = status === 'backlog';
+      
       grouped[status as TaskStatus].sort((a, b) => {
-        const posA = a.position ?? 999999;
-        const posB = b.position ?? 999999;
-        return posA - posB;
+        // 1. Priority first (High > Medium > Low > none)
+        const prioA = priorityWeight(a.priority);
+        const prioB = priorityWeight(b.priority);
+        if (prioA !== prioB) return prioA - prioB;
+
+        // 2. Position if both have it
+        const posA = a.position ?? Infinity;
+        const posB = b.position ?? Infinity;
+        if (posA !== Infinity || posB !== Infinity) {
+          if (posA !== posB) return posA - posB;
+        }
+
+        // 3. Date: backlog=oldest first (FIFO), others=newest first
+        const dateA = parseDate(a.updated || a.created);
+        const dateB = parseDate(b.updated || b.created);
+        if (dateA !== dateB) {
+          return isBacklog ? dateA - dateB : dateB - dateA;
+        }
+
+        return 0;
       });
     });
 
