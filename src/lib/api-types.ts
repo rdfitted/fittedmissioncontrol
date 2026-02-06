@@ -120,6 +120,71 @@ export type StreamEvent =
   | { type: 'error'; data: ErrorEvent };
 
 // ============================================================
+// Task Types
+// ============================================================
+
+export type TaskStatus = 'backlog' | 'in-progress' | 'completed' | 'archived';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export interface ChatMessage {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: number;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assigned?: string;
+  deliverable?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  completedBy?: string;
+  tags?: string[];
+  chat: ChatMessage[];
+}
+
+export interface TasksResponse {
+  tasks: Task[];
+  grouped: {
+    backlog: Task[];
+    inProgress: Task[];
+    completed: Task[];
+  };
+  total: number;
+  timestamp: number;
+}
+
+// ============================================================
+// Todo Types
+// ============================================================
+
+export interface Todo {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface TodosResponse {
+  todos: Todo[];
+  active: Todo[];
+  completed: Todo[];
+  counts: {
+    total: number;
+    active: number;
+    completed: number;
+  };
+  timestamp: number;
+}
+
+// ============================================================
 // Hierarchy Tree Types (for visualization)
 // ============================================================
 
