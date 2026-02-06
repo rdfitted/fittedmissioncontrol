@@ -29,7 +29,7 @@ function StatusLegend() {
   );
 }
 
-export function TaskBoard({ filterStatus, title = 'Task Board' }: TaskBoardProps) {
+export function TaskBoard({ filterStatus, title = 'Team Board' }: TaskBoardProps) {
   const { tasks, loading, error, refresh, completeTask } = useTasks();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 

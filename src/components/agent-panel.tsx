@@ -20,7 +20,9 @@ import {
   Wrench,
   Clock,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  PanelLeftClose,
+  PanelLeft
 } from 'lucide-react';
 
 const typeIcons = {
@@ -43,6 +45,11 @@ const statusLabels: Record<AgentStatus, string> = {
   stale: 'Stale',
   error: 'Error',
 };
+
+interface AgentPanelProps {
+  collapsed?: boolean;
+  onToggle?: () => void;
+}
 
 interface AgentDetailProps {
   agent: AgentSession;
@@ -115,7 +122,7 @@ function AgentDetail({ agent, onClose }: AgentDetailProps) {
   );
 }
 
-export function AgentPanel() {
+export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
   const { agents, tree, lifecycle, loading, error, connected, stats, refresh } = useAgentsRealtime();
   const [selectedAgent, setSelectedAgent] = useState<AgentSession | null>(null);
   const [showLifecycle, setShowLifecycle] = useState(true);
@@ -139,7 +146,10 @@ export function AgentPanel() {
   };
 
   return (
-    <Card className="bg-zinc-950 border-zinc-800">
+    <Card className={cn(
+      'bg-zinc-950 border-zinc-800 transition-all duration-300',
+      collapsed && 'min-h-0'
+    )}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -151,20 +161,35 @@ export function AgentPanel() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
-            </button>
+            {!collapsed && (
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+              </button>
+            )}
             <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/30">
               {stats.active}/{stats.total} Active
             </Badge>
+            {onToggle && (
+              <button
+                onClick={onToggle}
+                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+              >
+                {collapsed ? (
+                  <PanelLeft className="w-4 h-4" />
+                ) : (
+                  <PanelLeftClose className="w-4 h-4" />
+                )}
+              </button>
+            )}
           </div>
         </div>
         
-        {/* Type counts */}
+        {/* Type counts - always visible as summary */}
         <div className="flex gap-4 mt-2 text-xs text-zinc-500">
           <span className="flex items-center gap-1">
             <Crown className="w-3 h-3 text-amber-400" />
@@ -181,60 +206,65 @@ export function AgentPanel() {
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4">
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
-          </div>
-        ) : error ? (
-          <div className="text-red-400 text-sm text-center py-4">
-            Error: {error}
-          </div>
-        ) : (
-          <>
-            {/* Hierarchy Tree View */}
-            <div>
-              <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                Hierarchy
-              </h4>
-              <AgentHierarchy
-                tree={tree}
-                onSelect={setSelectedAgent}
-                selectedId={selectedAgent?.id}
-              />
+      <div className={cn(
+        'overflow-hidden transition-all duration-300 ease-out',
+        collapsed ? 'max-h-0 opacity-0' : 'max-h-[2000px] opacity-100'
+      )}>
+        <CardContent className="space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
             </div>
+          ) : error ? (
+            <div className="text-red-400 text-sm text-center py-4">
+              Error: {error}
+            </div>
+          ) : (
+            <>
+              {/* Hierarchy Tree View */}
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                  Hierarchy
+                </h4>
+                <AgentHierarchy
+                  tree={tree}
+                  onSelect={setSelectedAgent}
+                  selectedId={selectedAgent?.id}
+                />
+              </div>
 
-            {/* Selected Agent Detail */}
-            {selectedAgent && (
-              <AgentDetail
-                agent={selectedAgent}
-                onClose={() => setSelectedAgent(null)}
-              />
-            )}
-
-            <Separator className="bg-zinc-800" />
-
-            {/* Lifecycle Events */}
-            <div>
-              <button
-                onClick={() => setShowLifecycle(!showLifecycle)}
-                className="flex items-center justify-between w-full text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 hover:text-zinc-400 transition-colors"
-              >
-                <span>Recent Activity</span>
-                {showLifecycle ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </button>
-              
-              {showLifecycle && (
-                <AgentLifecycle events={lifecycleForComponent} maxHeight="200px" />
+              {/* Selected Agent Detail */}
+              {selectedAgent && (
+                <AgentDetail
+                  agent={selectedAgent}
+                  onClose={() => setSelectedAgent(null)}
+                />
               )}
-            </div>
-          </>
-        )}
-      </CardContent>
+
+              <Separator className="bg-zinc-800" />
+
+              {/* Lifecycle Events */}
+              <div>
+                <button
+                  onClick={() => setShowLifecycle(!showLifecycle)}
+                  className="flex items-center justify-between w-full text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 hover:text-zinc-400 transition-colors"
+                >
+                  <span>Recent Activity</span>
+                  {showLifecycle ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+                
+                {showLifecycle && (
+                  <AgentLifecycle events={lifecycleForComponent} maxHeight="200px" />
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </div>
     </Card>
   );
 }
