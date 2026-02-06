@@ -145,11 +145,71 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
     setRefreshing(false);
   };
 
+  // Collapsed state - narrow vertical strip
+  if (collapsed) {
+    return (
+      <Card className="bg-zinc-950 border-zinc-800 w-14 min-h-[400px] transition-all duration-300">
+        <div className="flex flex-col items-center py-4 gap-4">
+          {/* Expand button at top */}
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              className="p-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+              aria-label="Expand panel"
+              title="Expand Agent Squad"
+            >
+              <PanelLeft className="w-5 h-5" />
+            </button>
+          )}
+          
+          {/* Connection status */}
+          <div className="p-2" title={connected ? 'Connected' : 'Disconnected'}>
+            {connected ? (
+              <Wifi className="w-4 h-4 text-green-500" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-zinc-500" />
+            )}
+          </div>
+          
+          {/* Active count badge - vertical */}
+          <div className="flex flex-col items-center gap-1 px-2 py-2 rounded-md bg-green-500/20 border border-green-500/30">
+            <span className="text-lg font-bold text-green-400">{stats.active}</span>
+            <span className="text-[10px] text-green-400/70">active</span>
+          </div>
+          
+          {/* Agent type indicators - vertical stack */}
+          <div className="flex flex-col items-center gap-3 mt-2">
+            <div className="flex flex-col items-center gap-1" title={`${mainCount} Main`}>
+              <Crown className="w-4 h-4 text-amber-400" />
+              <span className="text-xs text-zinc-500">{mainCount}</span>
+            </div>
+            <div className="flex flex-col items-center gap-1" title={`${subagentCount} Subagents`}>
+              <Users className="w-4 h-4 text-blue-400" />
+              <span className="text-xs text-zinc-500">{subagentCount}</span>
+            </div>
+            <div className="flex flex-col items-center gap-1" title={`${cronCount} Cron`}>
+              <Clock className="w-4 h-4 text-purple-400" />
+              <span className="text-xs text-zinc-500">{cronCount}</span>
+            </div>
+          </div>
+          
+          {/* Refresh button at bottom */}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50 mt-auto"
+            title="Refresh"
+          >
+            <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
+  // Expanded state - full panel
   return (
-    <Card className={cn(
-      'bg-zinc-950 border-zinc-800 transition-all duration-300',
-      collapsed && 'min-h-0'
-    )}>
+    <Card className="bg-zinc-950 border-zinc-800 transition-all duration-300">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -161,15 +221,13 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {!collapsed && (
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
-              </button>
-            )}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+            </button>
             <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/30">
               {stats.active}/{stats.total} Active
             </Badge>
@@ -177,13 +235,9 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
               <button
                 onClick={onToggle}
                 className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+                aria-label="Collapse panel"
               >
-                {collapsed ? (
-                  <PanelLeft className="w-4 h-4" />
-                ) : (
-                  <PanelLeftClose className="w-4 h-4" />
-                )}
+                <PanelLeftClose className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -206,65 +260,60 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
         </div>
       </CardHeader>
       
-      <div className={cn(
-        'overflow-hidden transition-all duration-300 ease-out',
-        collapsed ? 'max-h-0 opacity-0' : 'max-h-[2000px] opacity-100'
-      )}>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+      <CardContent className="space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+          </div>
+        ) : error ? (
+          <div className="text-red-400 text-sm text-center py-4">
+            Error: {error}
+          </div>
+        ) : (
+          <>
+            {/* Hierarchy Tree View */}
+            <div>
+              <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                Hierarchy
+              </h4>
+              <AgentHierarchy
+                tree={tree}
+                onSelect={setSelectedAgent}
+                selectedId={selectedAgent?.id}
+              />
             </div>
-          ) : error ? (
-            <div className="text-red-400 text-sm text-center py-4">
-              Error: {error}
-            </div>
-          ) : (
-            <>
-              {/* Hierarchy Tree View */}
-              <div>
-                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Hierarchy
-                </h4>
-                <AgentHierarchy
-                  tree={tree}
-                  onSelect={setSelectedAgent}
-                  selectedId={selectedAgent?.id}
-                />
-              </div>
 
-              {/* Selected Agent Detail */}
-              {selectedAgent && (
-                <AgentDetail
-                  agent={selectedAgent}
-                  onClose={() => setSelectedAgent(null)}
-                />
-              )}
+            {/* Selected Agent Detail */}
+            {selectedAgent && (
+              <AgentDetail
+                agent={selectedAgent}
+                onClose={() => setSelectedAgent(null)}
+              />
+            )}
 
-              <Separator className="bg-zinc-800" />
+            <Separator className="bg-zinc-800" />
 
-              {/* Lifecycle Events */}
-              <div>
-                <button
-                  onClick={() => setShowLifecycle(!showLifecycle)}
-                  className="flex items-center justify-between w-full text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 hover:text-zinc-400 transition-colors"
-                >
-                  <span>Recent Activity</span>
-                  {showLifecycle ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                </button>
-                
-                {showLifecycle && (
-                  <AgentLifecycle events={lifecycleForComponent} maxHeight="200px" />
+            {/* Lifecycle Events */}
+            <div>
+              <button
+                onClick={() => setShowLifecycle(!showLifecycle)}
+                className="flex items-center justify-between w-full text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 hover:text-zinc-400 transition-colors"
+              >
+                <span>Recent Activity</span>
+                {showLifecycle ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
                 )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </div>
+              </button>
+              
+              {showLifecycle && (
+                <AgentLifecycle events={lifecycleForComponent} maxHeight="200px" />
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }

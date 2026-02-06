@@ -1,15 +1,17 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TaskColumn } from '@/components/task-column';
 import { useTasks, Task, TaskStatus, statusColors } from '@/hooks/use-tasks';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Filter, Eye, EyeOff } from 'lucide-react';
 
 interface TaskBoardProps {
   filterStatus?: TaskStatus[];
   title?: string;
 }
+
+type FilterOption = 'all' | TaskStatus;
 
 function StatusLegend() {
   const statuses: TaskStatus[] = ['backlog', 'active', 'blocked', 'review', 'ready'];
@@ -32,19 +34,31 @@ function StatusLegend() {
 export function TaskBoard({ filterStatus, title = 'Team Board' }: TaskBoardProps) {
   const { tasks, loading, error, refresh, completeTask } = useTasks();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<FilterOption>('all');
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  // Filter tasks if filterStatus provided
-  const filteredTasks = filterStatus 
+  // Filter tasks: prop filter > local filter, then apply completed visibility
+  let filteredTasks = filterStatus 
     ? tasks.filter(t => filterStatus.includes(t.status))
-    : tasks;
+    : statusFilter === 'all'
+      ? tasks
+      : tasks.filter(t => t.status === statusFilter);
+  
+  // Auto-hide completed (ready) tasks unless toggled on
+  if (!showCompleted && statusFilter !== 'ready') {
+    filteredTasks = filteredTasks.filter(t => t.status !== 'ready');
+  }
 
-  // Sort by status priority: active > blocked > review > backlog > ready
+  // Sort by status priority: active > blocked > review > backlog > ready > complete
   const statusOrder: Record<TaskStatus, number> = {
     active: 0,
     blocked: 1,
     review: 2,
     backlog: 3,
     ready: 4,
+    complete: 5,
   };
   
   const sortedTasks = [...filteredTasks].sort((a, b) => 
@@ -63,15 +77,9 @@ export function TaskBoard({ filterStatus, title = 'Team Board' }: TaskBoardProps
     }
   };
 
-  // Mock messages for demo
-  const getMockMessages = (task: Task) => {
-    if (task.status === 'active') {
-      return [
-        { id: '1', agent: 'Architect', message: 'Starting work on this task.', timestamp: new Date(Date.now() - 3600000).toISOString() },
-        { id: '2', agent: 'Frontend', message: 'Components structured, working on styling.', timestamp: new Date(Date.now() - 1800000).toISOString() },
-      ];
-    }
-    return [];
+  // Get messages from task (real data, not mock)
+  const getTaskMessages = (task: Task) => {
+    return task.messages || [];
   };
 
   if (error) {
@@ -92,7 +100,38 @@ export function TaskBoard({ filterStatus, title = 'Team Board' }: TaskBoardProps
             <CardTitle className="text-lg font-semibold text-zinc-100">{title}</CardTitle>
             <StatusLegend />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Status filter dropdown */}
+            <div className="flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-zinc-500" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as FilterOption)}
+                className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-600 cursor-pointer"
+              >
+                <option value="all">All</option>
+                <option value="backlog">Backlog</option>
+                <option value="active">Active</option>
+                <option value="blocked">Blocked</option>
+                <option value="review">Review</option>
+                <option value="ready">Done</option>
+              </select>
+            </div>
+            
+            {/* Show completed toggle */}
+            <button
+              onClick={() => setShowCompleted(!showCompleted)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors ${
+                showCompleted 
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                  : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-300'
+              }`}
+              title={showCompleted ? 'Hide completed tasks' : 'Show completed tasks'}
+            >
+              {showCompleted ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              <span>Done</span>
+            </button>
+            
             <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded-full">
               {sortedTasks.length} tasks
             </span>
@@ -150,7 +189,7 @@ export function TaskBoard({ filterStatus, title = 'Team Board' }: TaskBoardProps
                   key={task.id}
                   task={task}
                   onComplete={completeTask}
-                  messages={getMockMessages(task)}
+                  messages={getTaskMessages(task)}
                 />
               ))}
             </div>

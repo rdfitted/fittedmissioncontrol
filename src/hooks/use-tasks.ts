@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export type TaskStatus = 'backlog' | 'active' | 'blocked' | 'review' | 'ready';
+export type TaskStatus = 'backlog' | 'active' | 'blocked' | 'review' | 'ready' | 'complete';
 
 export interface TaskMessage {
   id: string;
@@ -48,6 +48,7 @@ export const statusColors: Record<TaskStatus, { bg: string; border: string; dot:
   },
   review: { bg: 'bg-amber-500/10', border: 'border-l-amber-500', dot: 'bg-amber-500', text: 'text-amber-400' },
   ready: { bg: 'bg-green-500/10', border: 'border-l-green-500', dot: 'bg-green-500', text: 'text-green-400' },
+  complete: { bg: 'bg-emerald-500/10', border: 'border-l-emerald-500', dot: 'bg-emerald-500', text: 'text-emerald-400' },
 };
 
 // Map legacy status names to new ones
@@ -59,8 +60,10 @@ function mapStatus(legacyStatus: string): TaskStatus {
     'active': 'active',
     'blocked': 'blocked',
     'review': 'review',
-    'completed': 'ready',
     'ready': 'ready',
+    'complete': 'complete',
+    'completed': 'complete',
+    'done': 'complete',
   };
   return mapping[legacyStatus] || 'backlog';
 }
@@ -98,11 +101,20 @@ export function useTasks(refreshInterval = 10000) {
       let transformedTasks: Task[] = [];
       
       if (data.tasks && Array.isArray(data.tasks)) {
-        // New API format - map status values
+        // New API format - map status values and chat field names
         transformedTasks = data.tasks.map((t: any) => ({
           ...t,
           status: mapStatus(t.status || 'backlog'),
           priority: t.priority as Task['priority'],
+          // Map chat messages: author→agent, content→message
+          messages: (t.chat || []).map((msg: any) => ({
+            id: msg.id,
+            agent: msg.author || msg.agent || 'Unknown',
+            message: msg.content || msg.message || '',
+            timestamp: typeof msg.timestamp === 'number' 
+              ? new Date(msg.timestamp).toISOString() 
+              : msg.timestamp,
+          })),
         }));
       } else if (data.grouped) {
         // New API format with grouped object
@@ -136,12 +148,41 @@ export function useTasks(refreshInterval = 10000) {
     return () => clearInterval(interval);
   }, [fetchTasks, refreshInterval]);
 
-  const updateTaskStatus = useCallback((taskId: string, newStatus: TaskStatus) => {
+  const updateTaskStatus = useCallback(async (taskId: string, newStatus: TaskStatus) => {
+    // Optimistic update
     setTasks(prev => prev.map(t => 
       t.id === taskId ? { ...t, status: newStatus } : t
     ));
-    // TODO: Persist to API when available
-  }, []);
+    
+    // Map frontend status to backend status
+    const backendStatusMap: Record<TaskStatus, string> = {
+      'backlog': 'backlog',
+      'active': 'in-progress',
+      'blocked': 'blocked',
+      'review': 'review',
+      'ready': 'ready',
+      'complete': 'complete',
+    };
+    const backendStatus = backendStatusMap[newStatus] || newStatus;
+    
+    // Persist to API
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: backendStatus }),
+      });
+      if (!res.ok) {
+        console.error('Failed to update task status:', await res.text());
+        // Revert on failure
+        fetchTasks();
+      }
+    } catch (err) {
+      console.error('Failed to update task status:', err);
+      // Revert on failure
+      fetchTasks();
+    }
+  }, [fetchTasks]);
 
   const completeTask = useCallback((taskId: string) => {
     updateTaskStatus(taskId, 'ready');

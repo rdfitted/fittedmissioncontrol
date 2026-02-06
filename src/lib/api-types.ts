@@ -43,27 +43,46 @@ export interface AgentsResponse {
 // Alert Types
 // ============================================================
 
+// New priority-based model per agent-communication-v2 spec
+export type AlertPriority = 'info' | 'needs-input' | 'blocked' | 'urgent';
+
+// Legacy types for auto-detected alerts
 export type AlertType = 'error' | 'stuck' | 'help_needed' | 'long_running' | 'high_token_usage';
 export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 export interface Alert {
   id: string;
-  type: AlertType;
-  severity: AlertSeverity;
-  agentId: string;
-  agentName: string;
-  sessionId: string;
-  message: string;
-  details?: string;
+  priority: AlertPriority;
+  agent: string;              // Agent name/id who created the alert
+  targetAgent: string;        // Target agent for this alert (default: "ryan")
+  message: string;            // Human-readable message
+  details?: string;           // Optional additional context
+  taskId?: string;            // Optional link to related task
+  taskTitle?: string;         // Optional task title for display
   timestamp: number;
-  acknowledged: boolean;
+  resolved: boolean;
+  resolvedAt?: number;
+  resolvedBy?: string;
+  // Legacy fields for auto-detected alerts
+  type?: AlertType;
+  severity?: AlertSeverity;
+  sessionId?: string;
+  // Deprecated - use 'agent' instead
+  agentId?: string;
+  agentName?: string;
+  // Deprecated - use 'resolved' instead
+  acknowledged?: boolean;
 }
 
 export interface AlertsResponse {
   alerts: Alert[];
   totalAlerts: number;
-  criticalCount: number;
-  highCount: number;
+  urgentCount: number;
+  blockedCount: number;
+  needsInputCount: number;
+  // Legacy fields
+  criticalCount?: number;
+  highCount?: number;
   timestamp: number;
 }
 
