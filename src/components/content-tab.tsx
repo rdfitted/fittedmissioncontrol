@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   RefreshCw,
   FileText,
@@ -25,8 +26,11 @@ import {
   User,
   Calendar,
   ChevronDown,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import { formatTimestamp } from '@/lib/format-timestamp';
+import ReactMarkdown from 'react-markdown';
 
 // Content types (matches API)
 export type ContentType = 'blog' | 'social' | 'research' | 'outreach' | 'content';
@@ -183,14 +187,19 @@ function ContentPreviewModal({
   open,
   onOpenChange,
   onStatusChange,
+  onContentUpdate,
 }: {
   item: ContentItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (id: string, status: ContentStatus) => void;
+  onContentUpdate?: () => void;
 }) {
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Fetch full content when modal opens
   useEffect(() => {
@@ -215,8 +224,48 @@ function ContentPreviewModal({
   useEffect(() => {
     if (!open) {
       setFullContent(null);
+      setIsEditing(false);
+      setEditContent('');
     }
   }, [open]);
+
+  // Enter edit mode
+  const handleEdit = () => {
+    setEditContent(fullContent || item?.preview || '');
+    setIsEditing(true);
+  };
+
+  // Cancel editing
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditContent('');
+  };
+
+  // Save edited content
+  const handleSave = async () => {
+    if (!item) return;
+    
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/content/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent }),
+      });
+      
+      if (res.ok) {
+        setFullContent(editContent);
+        setIsEditing(false);
+        onContentUpdate?.();
+      } else {
+        console.error('Failed to save content');
+      }
+    } catch (err) {
+      console.error('Error saving content:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!item) return null;
 
@@ -225,17 +274,30 @@ function ContentPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-[85vw] w-[85vw] max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader className="shrink-0">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className={`gap-1.5 ${typeConfig[item.type].color}`}>
-              <TypeIcon className="w-3 h-3" />
-              {typeConfig[item.type].label}
-            </Badge>
-            <Badge variant="outline" className={statusConfig[item.status].color}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusConfig[item.status].dot} mr-1.5`} />
-              {statusConfig[item.status].label}
-            </Badge>
+      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-[85vw] w-[85vw] h-[85vh] flex flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-zinc-800">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={`gap-1.5 ${typeConfig[item.type].color}`}>
+                <TypeIcon className="w-3 h-3" />
+                {typeConfig[item.type].label}
+              </Badge>
+              <Badge variant="outline" className={statusConfig[item.status].color}>
+                <span className={`w-1.5 h-1.5 rounded-full ${statusConfig[item.status].dot} mr-1.5`} />
+                {statusConfig[item.status].label}
+              </Badge>
+            </div>
+            {!isEditing && !loadingContent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEdit}
+                className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                Edit
+              </Button>
+            )}
           </div>
           <DialogTitle className="text-xl text-zinc-100">
             {item.title}
@@ -258,77 +320,135 @@ function ContentPreviewModal({
           </div>
         </DialogHeader>
 
-        {/* Content */}
-        <ScrollArea className="flex-1 my-4 pr-4 min-h-0">
+        {/* Content - flex-1 with min-h-0 for proper scrolling */}
+        <div className="flex-1 min-h-0 px-6 py-4">
           {loadingContent ? (
-            <div className="flex items-center justify-center h-32 text-zinc-500">
+            <div className="flex items-center justify-center h-full text-zinc-500">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
               Loading content...
             </div>
+          ) : isEditing ? (
+            <Textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full h-full resize-none bg-zinc-900 border-zinc-700 text-zinc-200 font-mono text-sm leading-relaxed"
+              placeholder="Enter content..."
+            />
           ) : (
-            <div className="prose prose-invert prose-sm max-w-none overflow-hidden">
-              <pre className="whitespace-pre-wrap text-sm text-zinc-300 font-sans leading-relaxed break-words overflow-x-hidden">
-                {fullContent || item.preview}
-              </pre>
-            </div>
+            <ScrollArea className="h-full">
+              <div className="prose prose-invert prose-sm max-w-none pr-4
+                prose-headings:text-zinc-100 prose-headings:font-semibold
+                prose-h1:text-2xl prose-h1:mb-4 prose-h1:mt-0
+                prose-h2:text-xl prose-h2:mb-3 prose-h2:mt-6
+                prose-h3:text-lg prose-h3:mb-2 prose-h3:mt-4
+                prose-p:text-zinc-300 prose-p:leading-relaxed prose-p:mb-4
+                prose-strong:text-zinc-200
+                prose-em:text-zinc-300
+                prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                prose-ul:text-zinc-300 prose-ol:text-zinc-300
+                prose-li:mb-1
+                prose-code:text-emerald-400 prose-code:bg-zinc-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800
+                prose-blockquote:border-zinc-600 prose-blockquote:text-zinc-400
+              ">
+                <ReactMarkdown>
+                  {fullContent || item.preview}
+                </ReactMarkdown>
+              </div>
+            </ScrollArea>
           )}
-        </ScrollArea>
+        </div>
 
         {/* Actions */}
-        <DialogFooter className="shrink-0 border-t border-zinc-800 pt-4">
+        <DialogFooter className="shrink-0 border-t border-zinc-800 px-6 py-4">
           <div className="flex items-center gap-3 w-full justify-between">
-            <span className="text-xs text-zinc-500">
-              Review actions:
-            </span>
-            <div className="flex items-center gap-2">
-              {item.status === 'draft' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onStatusChange(item.id, 'review')}
-                  className="bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
-                >
-                  Submit for Review
-                </Button>
-              )}
-              {item.status === 'review' && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onStatusChange(item.id, 'draft')}
-                    className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    Reject
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onStatusChange(item.id, 'approved')}
-                    className="bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
-                  >
-                    <Check className="w-4 h-4 mr-1" />
-                    Approve
-                  </Button>
-                </>
-              )}
-              {item.status === 'approved' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onStatusChange(item.id, 'published')}
-                  className="bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
-                >
-                  Mark Published
-                </Button>
-              )}
-              {item.status === 'published' && (
-                <span className="text-xs text-purple-400">
-                  ✓ Content is live
+            {isEditing ? (
+              <>
+                <span className="text-xs text-zinc-500">
+                  Editing mode
                 </span>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancel}
+                    disabled={saving}
+                    className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                  >
+                    {saving ? (
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-1" />
+                    )}
+                    Save Changes
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-zinc-500">
+                  Review actions:
+                </span>
+                <div className="flex items-center gap-2">
+                  {item.status === 'draft' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onStatusChange(item.id, 'review')}
+                      className="bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+                    >
+                      Submit for Review
+                    </Button>
+                  )}
+                  {item.status === 'review' && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onStatusChange(item.id, 'draft')}
+                        className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Reject
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onStatusChange(item.id, 'approved')}
+                        className="bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
+                      >
+                        <Check className="w-4 h-4 mr-1" />
+                        Approve
+                      </Button>
+                    </>
+                  )}
+                  {item.status === 'approved' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onStatusChange(item.id, 'published')}
+                      className="bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
+                    >
+                      Mark Published
+                    </Button>
+                  )}
+                  {item.status === 'published' && (
+                    <span className="text-xs text-purple-400">
+                      ✓ Content is live
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
@@ -556,6 +676,7 @@ export function ContentTab() {
         open={modalOpen}
         onOpenChange={handleModalOpenChange}
         onStatusChange={handleStatusChange}
+        onContentUpdate={fetchContent}
       />
     </>
   );

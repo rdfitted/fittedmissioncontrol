@@ -368,3 +368,30 @@ export async function updateContentStatus(
   
   return { ...item, status };
 }
+
+/**
+ * Update content file body
+ */
+export async function updateContentFile(
+  id: string,
+  content: string
+): Promise<ContentItem | null> {
+  const item = await getContentById(id);
+  if (!item) return null;
+  
+  try {
+    const fullPath = path.join(PROJECT_ROOT, item.filepath);
+    await fs.writeFile(fullPath, content, 'utf-8');
+    
+    // Return updated item with new preview
+    return {
+      ...item,
+      preview: extractPreview(content),
+      title: extractTitle(content, item.filename),
+      modifiedAt: Date.now(),
+    };
+  } catch (err) {
+    console.error(`Error writing ${item.filepath}:`, err);
+    return null;
+  }
+}
