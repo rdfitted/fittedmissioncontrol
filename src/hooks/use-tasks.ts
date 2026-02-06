@@ -26,6 +26,8 @@ export interface Task {
   // Blocked status fields
   blockedBy?: string;      // Blocker reason (matches backend)
   blockedAt?: number;      // Unix ms timestamp (matches backend)
+  // Position for ordering within columns (lower = higher priority = top)
+  position?: number;
 }
 
 export interface TodoItem {
@@ -188,6 +190,49 @@ export function useTasks(refreshInterval = 10000) {
     updateTaskStatus(taskId, 'ready');
   }, [updateTaskStatus]);
 
+  // Reorder tasks - updates position and optionally status for multiple tasks
+  const reorderTasks = useCallback(async (updates: Array<{ id: string; status: TaskStatus; position: number }>) => {
+    // Map frontend status to backend status
+    const backendStatusMap: Record<TaskStatus, string> = {
+      'backlog': 'backlog',
+      'active': 'in-progress',
+      'blocked': 'blocked',
+      'review': 'review',
+      'ready': 'ready',
+      'complete': 'complete',
+    };
+
+    // Optimistic update
+    setTasks(prev => {
+      const updated = [...prev];
+      updates.forEach(({ id, status, position }) => {
+        const idx = updated.findIndex(t => t.id === id);
+        if (idx !== -1) {
+          updated[idx] = { ...updated[idx], status, position };
+        }
+      });
+      return updated;
+    });
+
+    // Persist each update to API (could batch this in future)
+    try {
+      await Promise.all(updates.map(({ id, status, position }) =>
+        fetch(`/api/tasks/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            status: backendStatusMap[status] || status,
+            position 
+          }),
+        })
+      ));
+    } catch (err) {
+      console.error('Failed to reorder tasks:', err);
+      // Revert on failure
+      fetchTasks();
+    }
+  }, [fetchTasks]);
+
   return { 
     tasks, 
     loading, 
@@ -195,6 +240,7 @@ export function useTasks(refreshInterval = 10000) {
     refresh: fetchTasks,
     updateTaskStatus,
     completeTask,
+    reorderTasks,
   };
 }
 

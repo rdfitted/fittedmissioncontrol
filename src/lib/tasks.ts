@@ -51,6 +51,7 @@ export interface Task {
   tags?: string[];
   files?: string[];      // Files this task touches (for coordination)
   chat: ChatMessage[];   // Embedded chat thread
+  position?: number;     // Position within column for ordering (lower = higher priority)
   
   // Workflow enforcement fields (mc-002)
   participants?: string[];           // Agents/humans who have participated in discussion
@@ -234,7 +235,7 @@ export interface UpdateTaskOptions {
 
 export async function updateTask(
   id: string, 
-  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt' | 'participants' | 'emergencyOverride'>>,
+  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt' | 'participants' | 'emergencyOverride' | 'position'>>,
   options: UpdateTaskOptions = {}
 ): Promise<Task | null> {
   const task = await getTaskById(id);
