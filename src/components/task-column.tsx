@@ -29,7 +29,7 @@ const agentColors: Record<string, string> = {
   'Research': 'text-violet-400',
 };
 
-function formatBlockedDuration(blockedAt: string): { text: string; isUrgent: boolean } {
+function formatBlockedDuration(blockedAt: number): { text: string; isUrgent: boolean } {
   const date = new Date(blockedAt);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -99,7 +99,7 @@ function ChatMessage({ message }: { message: TaskMessage }) {
   );
 }
 
-function BlockerSection({ reason, blockedAt }: { reason: string; blockedAt?: string }) {
+function BlockerSection({ reason, blockedAt }: { reason: string; blockedAt?: number }) {
   const duration = blockedAt ? formatBlockedDuration(blockedAt) : null;
   
   return (
@@ -222,8 +222,8 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
       </div>
 
       {/* Blocker Section - shown only for blocked tasks */}
-      {isBlocked && task.blockedReason && (
-        <BlockerSection reason={task.blockedReason} blockedAt={task.blockedAt} />
+      {isBlocked && task.blockedBy && (
+        <BlockerSection reason={task.blockedBy} blockedAt={task.blockedAt} />
       )}
 
       {/* Chat Thread */}

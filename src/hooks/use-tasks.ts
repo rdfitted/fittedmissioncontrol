@@ -24,8 +24,8 @@ export interface Task {
   summary?: string;
   messages?: TaskMessage[];
   // Blocked status fields
-  blockedReason?: string;
-  blockedAt?: string;
+  blockedBy?: string;      // Blocker reason (matches backend)
+  blockedAt?: number;      // Unix ms timestamp (matches backend)
 }
 
 export interface TodoItem {
