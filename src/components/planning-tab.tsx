@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { usePlanningSessions, usePlanningSession } from '@/hooks/use-planning';
 import { cn } from '@/lib/utils';
 import { 
@@ -138,7 +139,7 @@ export function PlanningTab() {
         </div>
 
         {/* Session Content */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 h-0 overflow-y-auto">
           {sessionLoading ? (
             <div className="flex items-center justify-center py-12 text-zinc-500">
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -147,6 +148,7 @@ export function PlanningTab() {
           ) : session ? (
             <article className="prose prose-invert prose-zinc max-w-none pr-4">
               <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
                 components={{
                   // Custom heading styles
                   h1: ({ children }) => (
