@@ -11,6 +11,18 @@ export interface TaskMessage {
   timestamp: string;
 }
 
+export type SubtaskStatus = 'backlog' | 'active' | 'complete';
+
+export interface Subtask {
+  id: string;
+  title: string;
+  status: SubtaskStatus;
+  assigned?: string;
+  assignee?: string;  // Alternative field name from task files
+  delegatedBy?: string;
+  delegatedAt?: number;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -26,6 +38,8 @@ export interface Task {
   // Blocked status fields
   blockedBy?: string;      // Blocker reason (matches backend)
   blockedAt?: number;      // Unix ms timestamp (matches backend)
+  // Subtasks
+  subtasks?: Subtask[];
 }
 
 export interface TodoItem {
@@ -114,6 +128,15 @@ export function useTasks(refreshInterval = 10000) {
             timestamp: typeof msg.timestamp === 'number' 
               ? new Date(msg.timestamp).toISOString() 
               : msg.timestamp,
+          })),
+          // Map subtasks (normalize assignee/assigned)
+          subtasks: (t.subtasks || []).map((sub: any) => ({
+            id: sub.id || `sub-${Math.random().toString(36).slice(2)}`,
+            title: sub.title,
+            status: sub.status || 'backlog',
+            assigned: sub.assigned || sub.assignee,
+            delegatedBy: sub.delegatedBy,
+            delegatedAt: sub.delegatedAt,
           })),
         }));
       } else if (data.grouped) {
