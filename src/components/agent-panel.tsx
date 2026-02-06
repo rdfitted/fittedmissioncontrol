@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { AgentHierarchy } from '@/components/agent-hierarchy';
 import { AgentLifecycle } from '@/components/agent-lifecycle';
 import { useAgentsRealtime, AgentLifecycleEvent } from '@/hooks/use-agents';
@@ -260,59 +261,61 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-200px)]">
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
-          </div>
-        ) : error ? (
-          <div className="text-red-400 text-sm text-center py-4">
-            Error: {error}
-          </div>
-        ) : (
-          <>
-            {/* Hierarchy Tree View */}
-            <div>
-              <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                Hierarchy
-              </h4>
-              <AgentHierarchy
-                tree={tree}
-                onSelect={setSelectedAgent}
-                selectedId={selectedAgent?.id}
-              />
+      <CardContent>
+        <ScrollArea className="h-[calc(100vh-200px)]">
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
             </div>
+          ) : error ? (
+            <div className="text-red-400 text-sm text-center py-4">
+              Error: {error}
+            </div>
+          ) : (
+            <div className="space-y-4 pr-4">
+              {/* Hierarchy Tree View */}
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                  Hierarchy
+                </h4>
+                <AgentHierarchy
+                  tree={tree}
+                  onSelect={setSelectedAgent}
+                  selectedId={selectedAgent?.id}
+                />
+              </div>
 
-            {/* Selected Agent Detail */}
-            {selectedAgent && (
-              <AgentDetail
-                agent={selectedAgent}
-                onClose={() => setSelectedAgent(null)}
-              />
-            )}
-
-            <Separator className="bg-zinc-800" />
-
-            {/* Lifecycle Events */}
-            <div>
-              <button
-                onClick={() => setShowLifecycle(!showLifecycle)}
-                className="flex items-center justify-between w-full text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 hover:text-zinc-400 transition-colors"
-              >
-                <span>Recent Activity</span>
-                {showLifecycle ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </button>
-              
-              {showLifecycle && (
-                <AgentLifecycle events={lifecycleForComponent} maxHeight="200px" />
+              {/* Selected Agent Detail */}
+              {selectedAgent && (
+                <AgentDetail
+                  agent={selectedAgent}
+                  onClose={() => setSelectedAgent(null)}
+                />
               )}
+
+              <Separator className="bg-zinc-800" />
+
+              {/* Lifecycle Events */}
+              <div>
+                <button
+                  onClick={() => setShowLifecycle(!showLifecycle)}
+                  className="flex items-center justify-between w-full text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 hover:text-zinc-400 transition-colors"
+                >
+                  <span>Recent Activity</span>
+                  {showLifecycle ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+                
+                {showLifecycle && (
+                  <AgentLifecycle events={lifecycleForComponent} maxHeight="200px" />
+                )}
+              </div>
             </div>
-          </>
-        )}
+          )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
