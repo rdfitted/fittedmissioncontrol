@@ -14,7 +14,21 @@ interface ChatMessage {
   date?: string;
 }
 
+// Agent name → color mapping (use actual names, not titles)
 const agentColors: Record<string, string> = {
+  'Hex': 'text-emerald-400',
+  'Knox': 'text-blue-400',
+  'Aria': 'text-cyan-400',
+  'Vault': 'text-indigo-400',
+  'Scout': 'text-lime-400',
+  'Sterling': 'text-purple-400',
+  'Pulse': 'text-pink-400',
+  'Reach': 'text-orange-400',
+  'Iris': 'text-amber-400',
+  'Recon': 'text-violet-400',
+  'Slate': 'text-teal-400',
+  'Rigor': 'text-red-400',
+  // Legacy fallbacks (titles) for older messages
   'Hex Prime': 'text-emerald-400',
   'Architect': 'text-blue-400',
   'Frontend': 'text-cyan-400',
@@ -26,6 +40,19 @@ const agentColors: Record<string, string> = {
 };
 
 const agentBgColors: Record<string, string> = {
+  'Hex': 'bg-emerald-500/20',
+  'Knox': 'bg-blue-500/20',
+  'Aria': 'bg-cyan-500/20',
+  'Vault': 'bg-indigo-500/20',
+  'Scout': 'bg-lime-500/20',
+  'Sterling': 'bg-purple-500/20',
+  'Pulse': 'bg-pink-500/20',
+  'Reach': 'bg-orange-500/20',
+  'Iris': 'bg-amber-500/20',
+  'Recon': 'bg-violet-500/20',
+  'Slate': 'bg-teal-500/20',
+  'Rigor': 'bg-red-500/20',
+  // Legacy fallbacks (titles) for older messages
   'Hex Prime': 'bg-emerald-500/20',
   'Architect': 'bg-blue-500/20',
   'Frontend': 'bg-cyan-500/20',
