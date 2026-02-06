@@ -132,9 +132,26 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
   const [isCompleted, setIsCompleted] = useState(task.status === 'ready');
   const [inputValue, setInputValue] = useState('');
   const [localMessages, setLocalMessages] = useState<TaskMessage[]>(messages);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = useRef(messages.length);
   const colors = statusColors[task.status];
   const isBlocked = task.status === 'blocked';
+
+  // Sync localMessages with messages prop when it changes (fixes live updates)
+  useEffect(() => {
+    const newCount = messages.length;
+    const hadNewMessages = newCount > prevMessageCountRef.current;
+    
+    if (hadNewMessages) {
+      setHasNewMessages(true);
+      // Clear indicator after 3 seconds
+      setTimeout(() => setHasNewMessages(false), 3000);
+    }
+    
+    prevMessageCountRef.current = newCount;
+    setLocalMessages(messages);
+  }, [messages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -227,11 +244,18 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
       )}
 
       {/* Chat Thread */}
-      <div 
-        ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-3 space-y-1"
-        style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}
-      >
+      <div className={`relative transition-all duration-300 ${hasNewMessages ? 'ring-1 ring-emerald-500/50 ring-inset' : ''}`}>
+        {hasNewMessages && (
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded-full animate-in fade-in slide-in-from-top-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-emerald-400 font-medium">New</span>
+          </div>
+        )}
+        <div 
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto p-3 space-y-1"
+          style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent', maxHeight: '200px' }}
+        >
         {localMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-zinc-600">
             <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
@@ -242,6 +266,7 @@ export function TaskColumn({ task, onComplete, messages = [] }: TaskColumnProps)
             <ChatMessage key={msg.id} message={msg} />
           ))
         )}
+        </div>
       </div>
 
       {/* Chat Input */}
