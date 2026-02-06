@@ -1,9 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 export type TaskStatus = 'backlog' | 'active' | 'blocked' | 'review' | 'ready' | 'complete';
 export type TaskCategory = 'dev' | 'marketing' | 'both';
+
+// Drag state for unified state management
+export interface DragState {
+  activeTaskId: string | null;
+  originalColumn: TaskStatus | null;
+  originalPosition: number | null;
+}
 
 export interface TaskMessage {
   id: string;
@@ -112,6 +119,16 @@ export function useTasks(refreshInterval = 10000) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Drag state (unified - no more separate local state in KanbanBoard)
+  const [dragState, setDragState] = useState<DragState>({
+    activeTaskId: null,
+    originalColumn: null,
+    originalPosition: null,
+  });
+  
+  // Snapshot for revert on cancel
+  const preDragSnapshot = useRef<Task[] | null>(null);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -316,6 +333,109 @@ export function useTasks(refreshInterval = 10000) {
     }
   }, [fetchTasks]);
 
+  // === DRAG OPERATIONS (unified state management) ===
+  
+  // Start a drag operation - captures pre-drag snapshot
+  const startDrag = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    preDragSnapshot.current = [...tasks];
+    setDragState({
+      activeTaskId: taskId,
+      originalColumn: task.status,
+      originalPosition: task.position ?? 0,
+    });
+  }, [tasks]);
+
+  // Move during drag - optimistic UI update, no API call
+  const moveDuringDrag = useCallback((targetStatus: TaskStatus, targetPosition: number) => {
+    if (!dragState.activeTaskId) return;
+    
+    setTasks(prev => {
+      const updated = [...prev];
+      const taskIndex = updated.findIndex(t => t.id === dragState.activeTaskId);
+      if (taskIndex === -1) return prev;
+      
+      // Update task status and position
+      updated[taskIndex] = {
+        ...updated[taskIndex],
+        status: targetStatus,
+        position: targetPosition,
+      };
+      
+      return updated;
+    });
+  }, [dragState.activeTaskId]);
+
+  // End drag - persists to API, clears drag state
+  const endDrag = useCallback(async () => {
+    if (!dragState.activeTaskId) return;
+    
+    const task = tasks.find(t => t.id === dragState.activeTaskId);
+    if (!task) return;
+    
+    // Collect all position changes in affected columns
+    const affectedStatuses = new Set<TaskStatus>();
+    affectedStatuses.add(task.status);
+    if (dragState.originalColumn && dragState.originalColumn !== task.status) {
+      affectedStatuses.add(dragState.originalColumn);
+    }
+    
+    const updates: Array<{ id: string; status: TaskStatus; position: number }> = [];
+    
+    // Update positions for all affected columns
+    affectedStatuses.forEach(status => {
+      const statusTasks = tasks.filter(t => t.status === status);
+      statusTasks.forEach((t, index) => {
+        updates.push({
+          id: t.id,
+          status: status,
+          position: index,
+        });
+      });
+    });
+    
+    try {
+      if (updates.length > 0) {
+        await reorderTasks(updates);
+      }
+      preDragSnapshot.current = null;
+      setDragState({ activeTaskId: null, originalColumn: null, originalPosition: null });
+    } catch (error) {
+      // Revert on failure
+      if (preDragSnapshot.current) {
+        setTasks(preDragSnapshot.current);
+      }
+      preDragSnapshot.current = null;
+      setDragState({ activeTaskId: null, originalColumn: null, originalPosition: null });
+      throw error;
+    }
+  }, [dragState.activeTaskId, dragState.originalColumn, tasks, reorderTasks]);
+
+  // Cancel drag - reverts to pre-drag state
+  const cancelDrag = useCallback(() => {
+    if (preDragSnapshot.current) {
+      setTasks(preDragSnapshot.current);
+    }
+    preDragSnapshot.current = null;
+    setDragState({ activeTaskId: null, originalColumn: null, originalPosition: null });
+  }, []);
+
+  // Convenience: is a drag in progress?
+  const isDragging = dragState.activeTaskId !== null;
+
+  // Get the active task being dragged
+  const activeTask = useMemo(() => {
+    if (!dragState.activeTaskId) return null;
+    return tasks.find(t => t.id === dragState.activeTaskId) || null;
+  }, [dragState.activeTaskId, tasks]);
+
+  // Memoized getter for tasks in a specific column
+  const getTasksForColumn = useCallback((status: TaskStatus) => {
+    return tasks.filter(t => t.status === status);
+  }, [tasks]);
+
   return { 
     tasks, 
     loading, 
@@ -326,6 +446,15 @@ export function useTasks(refreshInterval = 10000) {
     reorderTasks,
     toggleSubtask,
     addSubtask,
+    // Drag operations (unified state)
+    dragState,
+    startDrag,
+    moveDuringDrag,
+    endDrag,
+    cancelDrag,
+    isDragging,
+    activeTask,
+    getTasksForColumn,
   };
 }
 

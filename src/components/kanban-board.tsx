@@ -245,23 +245,29 @@ function StatusLegend() {
 }
 
 export function KanbanBoard() {
-  const { tasks, loading, error, refresh, completeTask, updateTaskStatus, reorderTasks, toggleSubtask, addSubtask } = useTasks();
+  const { 
+    tasks, 
+    loading, 
+    error, 
+    refresh, 
+    completeTask, 
+    updateTaskStatus, 
+    toggleSubtask, 
+    addSubtask,
+    // Unified drag state from hook
+    startDrag,
+    moveDuringDrag,
+    endDrag,
+    cancelDrag,
+    isDragging,
+    activeTask,
+  } = useTasks();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'dev' | 'marketing'>('all');
   
-  // Local state for optimistic UI during drag
-  const [localTasks, setLocalTasks] = useState<Task[]>([]);
-  const displayTasks = localTasks.length > 0 ? localTasks : tasks;
-
-  // Update local tasks when API tasks change (but not during drag)
-  useMemo(() => {
-    if (!activeTask) {
-      setLocalTasks(tasks);
-    }
-  }, [tasks, activeTask]);
+  // No more local state - hook owns all task state
 
   // Keep selectedTask in sync with latest task data (for live subtask updates)
   useEffect(() => {
@@ -288,10 +294,10 @@ export function KanbanBoard() {
   // Filter tasks by category
   const filteredTasks = useMemo(() => {
     if (categoryFilter === 'all') {
-      return displayTasks;
+      return tasks;
     }
     // Filter for dev or marketing view
-    return displayTasks.filter(task => {
+    return tasks.filter(task => {
       // Tasks with 'both' category show in both dev and marketing views
       if (task.category === 'both') return true;
       // Tasks with matching category
@@ -299,7 +305,7 @@ export function KanbanBoard() {
       // Tasks without category don't show in filtered views
       return false;
     });
-  }, [displayTasks, categoryFilter]);
+  }, [tasks, categoryFilter]);
 
   // Group tasks by status with multi-criteria sorting
   const tasksByStatus: Record<TaskStatus, Task[]> = useMemo(() => {
@@ -395,132 +401,57 @@ export function KanbanBoard() {
     }
   };
 
-  // DnD handlers
+  // DnD handlers - now using unified hook state
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const task = displayTasks.find(t => t.id === active.id);
-    if (task) {
-      setActiveTask(task);
-      setLocalTasks([...displayTasks]);
-    }
+    startDrag(active.id as string);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || !isDragging) return;
 
     const activeId = active.id as string;
     const overId = over.id as string;
 
     if (activeId === overId) return;
 
-    const activeTask = localTasks.find(t => t.id === activeId);
-    const overTask = localTasks.find(t => t.id === overId);
-
-    if (!activeTask) return;
+    const overTask = tasks.find(t => t.id === overId);
+    const currentTask = tasks.find(t => t.id === activeId);
+    
+    if (!currentTask) return;
 
     // Determine target column
     let targetStatus: TaskStatus;
+    let targetPosition: number;
     
     if (overTask) {
       // Dropping on another task
       targetStatus = overTask.status;
+      targetPosition = overTask.position ?? 0;
     } else {
       // Dropping on empty column - check data attribute
       const columnStatus = (over.data.current as any)?.sortable?.containerId;
       if (columnStatus && KANBAN_COLUMNS.some(c => c.status === columnStatus)) {
         targetStatus = columnStatus as TaskStatus;
+        targetPosition = 0;
       } else {
         return;
       }
     }
 
-    // If moving to a different column, update the task's status
-    if (activeTask.status !== targetStatus) {
-      setLocalTasks(prev => {
-        return prev.map(t => 
-          t.id === activeId ? { ...t, status: targetStatus } : t
-        );
-      });
-    }
-
-    // Handle reordering within/across columns
-    if (overTask && activeId !== overId) {
-      setLocalTasks(prev => {
-        const activeIndex = prev.findIndex(t => t.id === activeId);
-        const overIndex = prev.findIndex(t => t.id === overId);
-        
-        if (activeIndex === -1 || overIndex === -1) return prev;
-
-        const newTasks = [...prev];
-        const [removed] = newTasks.splice(activeIndex, 1);
-        removed.status = targetStatus;
-        newTasks.splice(overIndex, 0, removed);
-        
-        return newTasks;
-      });
+    // Update via hook if status changed
+    if (currentTask.status !== targetStatus) {
+      moveDuringDrag(targetStatus, targetPosition);
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    setActiveTask(null);
+  const handleDragEnd = () => {
+    endDrag();
+  };
 
-    if (!over) {
-      setLocalTasks([]);
-      return;
-    }
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-    
-    const activeTask = localTasks.find(t => t.id === activeId);
-    if (!activeTask) {
-      setLocalTasks([]);
-      return;
-    }
-
-    // Determine final status
-    let targetStatus = activeTask.status;
-    const overTask = localTasks.find(t => t.id === overId);
-    if (overTask && overTask.id !== activeId) {
-      targetStatus = overTask.status;
-    }
-
-    // Get the column tasks in order after the move
-    const columnTasks = localTasks.filter(t => t.status === targetStatus);
-    
-    // Calculate new positions for all tasks in affected columns
-    const updates: Array<{ id: string; status: TaskStatus; position: number }> = [];
-    
-    // Get unique statuses that were affected
-    const affectedStatuses = new Set<TaskStatus>();
-    affectedStatuses.add(targetStatus);
-    const originalTask = tasks.find(t => t.id === activeId);
-    if (originalTask && originalTask.status !== targetStatus) {
-      affectedStatuses.add(originalTask.status);
-    }
-
-    // Update positions for all affected columns
-    affectedStatuses.forEach(status => {
-      const statusTasks = localTasks.filter(t => t.status === status);
-      statusTasks.forEach((task, index) => {
-        updates.push({
-          id: task.id,
-          status: status,
-          position: index,
-        });
-      });
-    });
-
-    // Persist the changes
-    if (updates.length > 0) {
-      reorderTasks(updates);
-    }
-
-    // Keep local tasks until API confirms
-    // (useTasks will update when it refetches)
+  const handleDragCancel = () => {
+    cancelDrag();
   };
 
   if (error) {
@@ -605,6 +536,7 @@ export function KanbanBoard() {
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
             >
               {/* Scroll buttons */}
               <button

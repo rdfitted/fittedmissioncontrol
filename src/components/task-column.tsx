@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, Send, User, MessageSquare, AlertTriangle, Clock, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, User, MessageSquare, AlertTriangle, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Task, TaskStatus, statusColors, TaskMessage, Subtask, SubtaskStatus } from '@/hooks/use-tasks';
 import { formatTimestamp } from '@/lib/format-timestamp';
@@ -202,8 +202,6 @@ function SubtaskList({ subtasks }: { subtasks: Subtask[] }) {
 
 export function TaskColumn({ task, onComplete, messages = [], subtasks }: TaskColumnProps) {
   const [isCompleted, setIsCompleted] = useState(task.status === 'ready');
-  const [inputValue, setInputValue] = useState('');
-  const [localMessages, setLocalMessages] = useState<TaskMessage[]>(messages);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const colors = statusColors[task.status];
   const isBlocked = task.status === 'blocked';
@@ -213,34 +211,12 @@ export function TaskColumn({ task, onComplete, messages = [], subtasks }: TaskCo
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [localMessages]);
+  }, [messages]);
 
   const handleComplete = () => {
     setIsCompleted(!isCompleted);
     if (!isCompleted && onComplete) {
       onComplete(task.id);
-    }
-  };
-
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
-    
-    const newMessage: TaskMessage = {
-      id: `msg-${Date.now()}`,
-      agent: 'You',
-      message: inputValue.trim(),
-      timestamp: new Date().toISOString(),
-    };
-    
-    setLocalMessages(prev => [...prev, newMessage]);
-    setInputValue('');
-    // TODO: Send to API when available
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
     }
   };
 
@@ -301,43 +277,22 @@ export function TaskColumn({ task, onComplete, messages = [], subtasks }: TaskCo
       {/* Subtasks Section */}
       <SubtaskList subtasks={subtasks || task.subtasks || []} />
 
-      {/* Chat Thread */}
+      {/* Chat Thread (read-only - editing happens in TaskDetailModal) */}
       <div 
         ref={chatContainerRef}
         className="flex-1 overflow-y-auto p-3 space-y-1"
         style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}
       >
-        {localMessages.length === 0 ? (
+        {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-zinc-600">
             <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
             <span className="text-xs">No messages yet</span>
           </div>
         ) : (
-          localMessages.map((msg) => (
+          messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))
         )}
-      </div>
-
-      {/* Chat Input */}
-      <div className="p-3 border-t border-zinc-800">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Add a comment..."
-            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-600"
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim()}
-            className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
       </div>
     </div>
   );
