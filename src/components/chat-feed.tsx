@@ -74,7 +74,11 @@ function NewMessagesPill({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function ChatFeed() {
+interface ChatFeedProps {
+  fullHeight?: boolean;
+}
+
+export function ChatFeed({ fullHeight = false }: ChatFeedProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
@@ -175,8 +179,8 @@ export function ChatFeed() {
   }, [loading]);
 
   return (
-    <Card className="bg-zinc-950 border-zinc-800 h-full">
-      <CardHeader className="pb-3">
+    <Card className={`bg-zinc-950 border-zinc-800 ${fullHeight ? 'h-full flex flex-col' : 'h-full'}`}>
+      <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold text-zinc-100">Squad Chat</CardTitle>
           <div className="flex items-center gap-1.5">
@@ -185,10 +189,10 @@ export function ChatFeed() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="relative">
+      <CardContent className={`relative ${fullHeight ? 'flex-1 overflow-hidden' : ''}`}>
         <div 
           ref={scrollRef}
-          className="h-[300px] overflow-y-auto scroll-smooth pr-2"
+          className={`${fullHeight ? 'h-full' : 'h-[300px]'} overflow-y-auto scroll-smooth pr-2`}
           style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}
         >
           {loading ? (

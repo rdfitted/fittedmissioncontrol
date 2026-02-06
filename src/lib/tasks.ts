@@ -19,6 +19,21 @@ export interface ChatMessage {
   timestamp: number;     // Unix ms
 }
 
+// Emergency override for bypassing workflow gates (Ryan-only)
+export interface EmergencyOverride {
+  authorizedBy: string;  // Must be 'ryan'
+  reason: string;        // Required, no empty strings
+  timestamp: number;     // Unix ms when override was authorized
+  bypassedState?: string; // Which gate was skipped (e.g., 'ready')
+}
+
+// State transition record for audit trail
+export interface StateHistoryEntry {
+  state: string;
+  timestamp: number;     // Unix ms
+  actor: string;         // Who triggered the transition
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -36,6 +51,11 @@ export interface Task {
   tags?: string[];
   files?: string[];      // Files this task touches (for coordination)
   chat: ChatMessage[];   // Embedded chat thread
+  
+  // Workflow enforcement fields (mc-002)
+  participants?: string[];           // Agents/humans who have participated in discussion
+  emergencyOverride?: EmergencyOverride;  // Ryan-only bypass for urgent items
+  stateHistory?: StateHistoryEntry[];     // Audit trail of state transitions
 }
 
 export interface Todo {
@@ -50,6 +70,53 @@ export interface TodoList {
   owner: string;         // "Ryan"
   todos: Todo[];
   updatedAt: number;
+}
+
+// ============ Workflow Validation (mc-002) ============
+
+export interface ReadyEligibilityResult {
+  eligible: boolean;
+  missing: string[];
+}
+
+const REQUIRED_PARTICIPANTS = ['ryan', 'hex'];
+const MANAGERS = ['knox', 'sterling'];
+const MIN_PARTICIPANTS = 4;
+
+/**
+ * Check if a task is eligible to move to 'ready' status.
+ * Requirements:
+ * - Ryan and Hex must participate
+ * - At least one manager (Knox or Sterling)
+ * - Minimum 4 total participants
+ */
+export function checkReadyEligibility(task: Task): ReadyEligibilityResult {
+  const participants = (task.participants || []).map(p => p.toLowerCase());
+  const missing: string[] = [];
+  
+  // Check required participants
+  const hasRequired = REQUIRED_PARTICIPANTS.every(r => participants.includes(r));
+  if (!hasRequired) {
+    const missingRequired = REQUIRED_PARTICIPANTS.filter(r => !participants.includes(r));
+    missing.push(`Required participants: ${missingRequired.join(', ')}`);
+  }
+  
+  // Check for at least one manager
+  const hasManager = participants.some(p => MANAGERS.includes(p));
+  if (!hasManager) {
+    missing.push(`Need a team manager (${MANAGERS.join(' or ')})`);
+  }
+  
+  // Check minimum count
+  if (participants.length < MIN_PARTICIPANTS) {
+    const needed = MIN_PARTICIPANTS - participants.length;
+    missing.push(`${needed} more participant(s) needed (have ${participants.length}/${MIN_PARTICIPANTS})`);
+  }
+  
+  return { 
+    eligible: missing.length === 0, 
+    missing 
+  };
 }
 
 // ============ Helpers ============
@@ -161,16 +228,46 @@ export async function createTask(data: {
   return task;
 }
 
-export async function updateTask(id: string, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt'>>): Promise<Task | null> {
+export interface UpdateTaskOptions {
+  actor?: string;  // Who is making the update (for stateHistory)
+}
+
+export async function updateTask(
+  id: string, 
+  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt' | 'participants' | 'emergencyOverride'>>,
+  options: UpdateTaskOptions = {}
+): Promise<Task | null> {
   const task = await getTaskById(id);
   if (!task) return null;
   
   const now = Date.now();
+  const actor = options.actor || 'system';
+  
+  // Validate emergencyOverride if provided
+  if (updates.emergencyOverride) {
+    if (updates.emergencyOverride.authorizedBy?.toLowerCase() !== 'ryan') {
+      throw new Error('Only Ryan can authorize emergency override');
+    }
+    if (!updates.emergencyOverride.reason?.trim()) {
+      throw new Error('Emergency override requires a reason');
+    }
+  }
+  
   const updatedTask: Task = {
     ...task,
     ...updates,
     updatedAt: now,
   };
+  
+  // Track state changes in stateHistory
+  if (updates.status && updates.status !== task.status) {
+    const historyEntry: { state: string; timestamp: number; actor: string } = {
+      state: updates.status,
+      timestamp: now,
+      actor,
+    };
+    updatedTask.stateHistory = [...(task.stateHistory || []), historyEntry];
+  }
   
   // If marking as completed, set completedAt
   if (updates.status === 'completed' && task.status !== 'completed') {

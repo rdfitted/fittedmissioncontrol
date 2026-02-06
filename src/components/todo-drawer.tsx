@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, Plus, X, ChevronRight, ChevronLeft, Trash2 } from 'lucide-react';
+import { Check, Plus, Trash2, PanelRight, PanelRightClose } from 'lucide-react';
 import { useTodos, TodoItem } from '@/hooks/use-tasks';
 
 interface TodoDrawerProps {
@@ -122,23 +122,17 @@ export function TodoDrawer({ defaultOpen = true, onToggleChange }: TodoDrawerPro
         ${isOpen ? 'w-[300px]' : 'w-12'}
       `}
     >
-      {/* Toggle button */}
-      <button
-        onClick={handleToggle}
-        className={`
-          absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2
-          w-6 h-12 rounded-l-lg bg-zinc-800 border border-zinc-700 border-r-0
-          flex items-center justify-center text-zinc-400 hover:text-zinc-200
-          transition-colors z-50
-        `}
-      >
-        {isOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-      </button>
-
       {/* Collapsed state indicator */}
       {!isOpen && (
-        <div className="h-full bg-zinc-900 border-l border-zinc-800 flex flex-col items-center pt-20 gap-2">
-          <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center">
+        <div className="h-full bg-zinc-900 border-l border-zinc-800 flex flex-col items-center pt-4 gap-2">
+          <button
+            onClick={handleToggle}
+            className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+            aria-label="Expand panel"
+          >
+            <PanelRightClose className="w-4 h-4" />
+          </button>
+          <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mt-2">
             <span className="text-xs font-bold text-blue-400">{pendingCount}</span>
           </div>
           <span className="text-[10px] text-zinc-500 writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>
@@ -171,6 +165,13 @@ export function TodoDrawer({ defaultOpen = true, onToggleChange }: TodoDrawerPro
                   ✓{completedCount}
                 </span>
               )}
+              <button
+                onClick={handleToggle}
+                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label="Collapse panel"
+              >
+                <PanelRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
           <p className="text-xs text-zinc-500">Personal task list</p>
