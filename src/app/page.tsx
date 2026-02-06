@@ -9,7 +9,8 @@ import { AlertsPanel } from '@/components/alerts-panel';
 import { usePanelCollapse } from '@/hooks/use-panel-collapse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, MessageSquare, Activity } from 'lucide-react';
+import { LayoutGrid, MessageSquare, Activity, Calendar } from 'lucide-react';
+import { PlanningTab } from '@/components/planning-tab';
 
 export default function Dashboard() {
   const { collapsed, toggle, setPanel, isHydrated } = usePanelCollapse();
@@ -66,6 +67,13 @@ export default function Dashboard() {
                 Team Board
               </TabsTrigger>
               <TabsTrigger 
+                value="planning"
+                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
+              >
+                <Calendar className="w-4 h-4" />
+                Planning
+              </TabsTrigger>
+              <TabsTrigger 
                 value="chat"
                 className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
               >
@@ -88,6 +96,16 @@ export default function Dashboard() {
             >
               <div className="h-full">
                 <KanbanBoard />
+              </div>
+            </TabsContent>
+
+            {/* Planning Tab - Weekly planning sessions */}
+            <TabsContent 
+              value="planning" 
+              className="flex-1 mt-0 overflow-hidden"
+            >
+              <div className="h-full">
+                <PlanningTab />
               </div>
             </TabsContent>
 
