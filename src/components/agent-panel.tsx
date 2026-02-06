@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { AgentHierarchy } from '@/components/agent-hierarchy';
 import { AgentLifecycle } from '@/components/agent-lifecycle';
+import { SquadRoster } from '@/components/squad-roster';
 import { useAgentsRealtime, AgentLifecycleEvent } from '@/hooks/use-agents';
 import type { AgentSession, AgentStatus } from '@/lib/api-types';
 import { cn } from '@/lib/utils';
@@ -271,10 +272,20 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
           </div>
         ) : (
           <>
-            {/* Hierarchy Tree View */}
+            {/* Squad Roster - Static team structure */}
             <div>
               <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                Hierarchy
+                Squad Roster
+              </h4>
+              <SquadRoster />
+            </div>
+
+            <Separator className="bg-zinc-800" />
+
+            {/* Active Sessions - Runtime hierarchy */}
+            <div>
+              <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                Active Sessions
               </h4>
               <AgentHierarchy
                 tree={tree}
