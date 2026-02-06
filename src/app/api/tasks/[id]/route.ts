@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTaskById, updateTask, archiveTask, TaskStatus, Priority } from '@/lib/tasks';
+import { getTaskById, updateTask, archiveTask, TaskStatus, Priority, checkReadyEligibility } from '@/lib/tasks';
 import { 
   registerFileOwnership, 
   releaseFileOwnership, 
@@ -108,6 +108,50 @@ export async function PATCH(
       console.warn(`[PATCH /api/tasks/${id}] Setting status to 'blocked' without blockedBy reason`);
     }
     
+    // mc-002: Validate emergencyOverride if provided
+    if (body.emergencyOverride) {
+      if (body.emergencyOverride.authorizedBy?.toLowerCase() !== 'ryan') {
+        return NextResponse.json(
+          { error: 'Only Ryan can authorize emergency override' },
+          { status: 403 }
+        );
+      }
+      if (!body.emergencyOverride.reason?.trim()) {
+        return NextResponse.json(
+          { error: 'Emergency override requires a reason' },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // mc-002: Enforce ready eligibility check
+    // To move to 'ready' status, task needs 4+ participants including ryan, hex, and a manager
+    // Exception: emergency override bypasses this check
+    if (body.status === 'ready') {
+      const hasValidOverride = currentTask.emergencyOverride?.authorizedBy?.toLowerCase() === 'ryan' ||
+                               body.emergencyOverride?.authorizedBy?.toLowerCase() === 'ryan';
+      
+      if (!hasValidOverride) {
+        // Check with potentially updated participants
+        const taskForCheck = {
+          ...currentTask,
+          participants: body.participants ?? currentTask.participants,
+        };
+        const eligibility = checkReadyEligibility(taskForCheck);
+        
+        if (!eligibility.eligible) {
+          return NextResponse.json(
+            { 
+              error: 'Task not eligible for ready status',
+              missing: eligibility.missing,
+              hint: 'Need 4+ participants including ryan, hex, and a team manager. Or Ryan can authorize emergency override.'
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+    
     // Build update object with only provided fields
     const updates: Parameters<typeof updateTask>[1] = {};
     if (body.title !== undefined) updates.title = body.title.trim();
@@ -121,8 +165,20 @@ export async function PATCH(
     if (body.blockedAt !== undefined) updates.blockedAt = body.blockedAt;
     if (body.tags !== undefined) updates.tags = body.tags;
     if (body.files !== undefined) updates.files = Array.isArray(body.files) ? body.files : undefined;
+    if (body.participants !== undefined) updates.participants = Array.isArray(body.participants) ? body.participants : undefined;
+    if (body.emergencyOverride !== undefined) {
+      updates.emergencyOverride = body.emergencyOverride ? {
+        authorizedBy: body.emergencyOverride.authorizedBy,
+        reason: body.emergencyOverride.reason,
+        timestamp: body.emergencyOverride.timestamp || Date.now(),
+        bypassedState: body.emergencyOverride.bypassedState,
+      } : undefined;
+    }
     
-    const task = await updateTask(id, updates);
+    // Determine actor for stateHistory (prefer assigned agent, fallback to body.actor or 'api')
+    const actor = body.actor || currentTask.assigned || 'api';
+    
+    const task = await updateTask(id, updates, { actor });
     
     if (!task) {
       return NextResponse.json(

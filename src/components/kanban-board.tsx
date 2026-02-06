@@ -1,0 +1,331 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useTasks, Task, TaskStatus, statusColors } from '@/hooks/use-tasks';
+import { RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, Check, User, MessageSquare, Clock } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { formatTimestamp } from '@/lib/format-timestamp';
+import { TaskDetailModal } from '@/components/task-detail-modal';
+
+// Column configuration
+const KANBAN_COLUMNS: { status: TaskStatus; label: string }[] = [
+  { status: 'backlog', label: 'Backlog' },
+  { status: 'active', label: 'Active' },
+  { status: 'blocked', label: 'Blocked' },
+  { status: 'review', label: 'Review' },
+  { status: 'ready', label: 'Ready' },
+  { status: 'complete', label: 'Complete' },
+];
+
+const priorityColors = {
+  High: 'bg-red-500/20 text-red-400 border-red-500/30',
+  Medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  Low: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+};
+
+interface TaskCardProps {
+  task: Task;
+  onComplete?: (taskId: string) => void;
+  onClick?: (task: Task) => void;
+}
+
+function TaskCard({ task, onComplete, onClick }: TaskCardProps) {
+  const colors = statusColors[task.status];
+  const isBlocked = task.status === 'blocked';
+  const messageCount = task.messages?.length || 0;
+  const latestMessage = task.messages?.[task.messages.length - 1];
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Don't trigger card click when clicking action buttons
+    if ((e.target as HTMLElement).closest('button')) return;
+    onClick?.(task);
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`
+        p-3 rounded-lg border border-zinc-800 bg-zinc-900/70
+        hover:border-zinc-700 hover:bg-zinc-900 transition-all duration-200
+        cursor-pointer
+        ${isBlocked ? 'ring-1 ring-red-500/30' : ''}
+      `}
+    >
+      {/* Header */}
+      <div className="flex items-start gap-2 mb-2">
+        <span className="text-[10px] font-mono text-zinc-600 shrink-0">{task.id}</span>
+        {task.priority && (
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${priorityColors[task.priority]}`}>
+            {task.priority}
+          </Badge>
+        )}
+      </div>
+
+      {/* Title */}
+      <h4 className="text-sm font-medium text-zinc-200 line-clamp-2 mb-2">
+        {task.title}
+      </h4>
+
+      {/* Description (if short) */}
+      {task.description && (
+        <p className="text-xs text-zinc-500 line-clamp-2 mb-2">{task.description}</p>
+      )}
+
+      {/* Blocker warning */}
+      {isBlocked && task.blockedBy && (
+        <div className="flex items-start gap-1.5 p-2 rounded bg-red-500/10 border border-red-500/20 mb-2">
+          <AlertTriangle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
+          <span className="text-xs text-red-300 line-clamp-2">{task.blockedBy}</span>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800">
+        <div className="flex items-center gap-2">
+          {task.assigned && (
+            <div className="flex items-center gap-1 text-[10px] text-zinc-500">
+              <User className="w-3 h-3" />
+              <span>{task.assigned}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {messageCount > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-zinc-500">
+              <MessageSquare className="w-3 h-3" />
+              <span>{messageCount}</span>
+            </div>
+          )}
+          {task.status !== 'complete' && task.status !== 'ready' && onComplete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onComplete(task.id);
+              }}
+              className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-green-400 transition-colors"
+              title="Mark complete"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface KanbanColumnProps {
+  status: TaskStatus;
+  label: string;
+  tasks: Task[];
+  onComplete?: (taskId: string) => void;
+  onTaskClick?: (task: Task) => void;
+}
+
+function KanbanColumn({ status, label, tasks, onComplete, onTaskClick }: KanbanColumnProps) {
+  const colors = statusColors[status];
+
+  return (
+    <div className="flex flex-col w-[280px] min-w-[280px] h-full">
+      {/* Column Header */}
+      <div className={`flex items-center justify-between p-3 rounded-t-lg ${colors.bg} border-b-2 ${colors.border.replace('border-l-', 'border-b-')}`}>
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${colors.dot}`} />
+          <span className={`text-sm font-semibold ${colors.text}`}>{label}</span>
+        </div>
+        <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded-full text-zinc-400">
+          {tasks.length}
+        </span>
+      </div>
+
+      {/* Task List */}
+      <div
+        className="flex-1 p-2 space-y-2 overflow-y-auto bg-zinc-950/50 rounded-b-lg border border-t-0 border-zinc-800"
+        style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}
+      >
+        {tasks.length === 0 ? (
+          <div className="flex items-center justify-center h-20 text-xs text-zinc-600">
+            No tasks
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <TaskCard 
+              key={task.id} 
+              task={task} 
+              onComplete={onComplete}
+              onClick={onTaskClick}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusLegend() {
+  return (
+    <div className="flex items-center gap-3 text-xs flex-wrap">
+      {KANBAN_COLUMNS.map(({ status, label }) => {
+        const colors = statusColors[status];
+        return (
+          <div key={status} className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${colors.dot}`} />
+            <span className="text-zinc-500">{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function KanbanBoard() {
+  const { tasks, loading, error, refresh, completeTask, updateTaskStatus } = useTasks();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Group tasks by status
+  const tasksByStatus: Record<TaskStatus, Task[]> = {
+    backlog: [],
+    active: [],
+    blocked: [],
+    review: [],
+    ready: [],
+    complete: [],
+  };
+
+  tasks.forEach((task) => {
+    if (tasksByStatus[task.status]) {
+      tasksByStatus[task.status].push(task);
+    }
+  });
+
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    }
+  };
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setModalOpen(true);
+  };
+
+  const handleModalOpenChange = (open: boolean) => {
+    setModalOpen(open);
+    if (!open) {
+      // Delay clearing selectedTask to avoid flash during close animation
+      setTimeout(() => setSelectedTask(null), 150);
+    }
+  };
+
+  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
+    updateTaskStatus(taskId, newStatus);
+    // Update local selected task state to reflect change immediately
+    if (selectedTask?.id === taskId) {
+      setSelectedTask({ ...selectedTask, status: newStatus });
+    }
+  };
+
+  if (error) {
+    return (
+      <Card className="bg-zinc-950 border-zinc-800 h-full">
+        <CardContent className="flex items-center justify-center h-full text-red-400">
+          Error loading tasks: {error}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card className="bg-zinc-950 border-zinc-800 h-full flex flex-col">
+        <CardHeader className="pb-3 shrink-0">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-4">
+              <CardTitle className="text-lg font-semibold text-zinc-100">Team Board</CardTitle>
+              <StatusLegend />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded-full">
+                {tasks.length} tasks
+              </span>
+              <button
+                onClick={() => refresh()}
+                className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="flex-1 relative overflow-hidden p-0">
+          {loading && tasks.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-zinc-500">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                Loading tasks...
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Scroll buttons */}
+              <button
+                onClick={scrollLeft}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-zinc-800/90 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all shadow-lg backdrop-blur-sm"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={scrollRight}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-zinc-800/90 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all shadow-lg backdrop-blur-sm"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+
+              {/* Horizontally scrollable container - CRITICAL: scroll contained here */}
+              <div
+                ref={scrollContainerRef}
+                className="h-full overflow-x-auto overflow-y-hidden px-10 py-4"
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#3f3f46 transparent',
+                }}
+              >
+                <div className="flex gap-4 h-full min-w-max">
+                  {KANBAN_COLUMNS.map(({ status, label }) => (
+                    <KanbanColumn
+                      key={status}
+                      status={status}
+                      label={label}
+                      tasks={tasksByStatus[status]}
+                      onComplete={completeTask}
+                      onTaskClick={handleTaskClick}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        task={selectedTask}
+        open={modalOpen}
+        onOpenChange={handleModalOpenChange}
+        onStatusChange={handleStatusChange}
+      />
+    </>
+  );
+}

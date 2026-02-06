@@ -111,8 +111,8 @@ export function useAlerts(refreshInterval = 10000) {
       setAlerts(data.alerts);
       setCounts({
         total: data.totalAlerts,
-        critical: data.criticalCount,
-        high: data.highCount,
+        critical: data.criticalCount ?? 0,
+        high: data.highCount ?? 0,
       });
       setError(null);
     } catch (err) {
