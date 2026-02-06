@@ -152,46 +152,82 @@ export function useTodos() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load from localStorage
-  useEffect(() => {
+  // Fetch from API
+  const fetchTodos = useCallback(async () => {
     try {
-      const stored = localStorage.getItem('mission-control-todos');
-      if (stored) {
-        setTodos(JSON.parse(stored));
+      const res = await fetch('/api/todos');
+      if (res.ok) {
+        const data = await res.json();
+        setTodos(data.items || data.todos || []);
       }
-    } catch {
-      console.error('Failed to load todos');
+    } catch (err) {
+      console.error('Failed to fetch todos:', err);
+      // Fallback to localStorage if API fails
+      try {
+        const stored = localStorage.getItem('mission-control-todos');
+        if (stored) {
+          setTodos(JSON.parse(stored));
+        }
+      } catch {
+        console.error('Failed to load from localStorage');
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Save to localStorage on change
   useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('mission-control-todos', JSON.stringify(todos));
-    }
-  }, [todos, loading]);
+    fetchTodos();
+  }, [fetchTodos]);
 
-  const addTodo = useCallback((text: string) => {
+  const addTodo = useCallback(async (text: string) => {
     const newTodo: TodoItem = {
       id: `todo-${Date.now()}`,
       text: text.trim(),
       completed: false,
       createdAt: new Date().toISOString(),
     };
+    // Optimistic update
     setTodos(prev => [newTodo, ...prev]);
+    // Persist to API
+    try {
+      await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim() }),
+      });
+    } catch (err) {
+      console.error('Failed to add todo:', err);
+    }
   }, []);
 
-  const toggleTodo = useCallback((id: string) => {
+  const toggleTodo = useCallback(async (id: string) => {
+    // Optimistic update
     setTodos(prev => prev.map(t => 
       t.id === id ? { ...t, completed: !t.completed } : t
     ));
+    // Persist to API
+    try {
+      await fetch(`/api/todos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toggle: true }),
+      });
+    } catch (err) {
+      console.error('Failed to toggle todo:', err);
+    }
   }, []);
 
-  const removeTodo = useCallback((id: string) => {
+  const removeTodo = useCallback(async (id: string) => {
+    // Optimistic update
     setTodos(prev => prev.filter(t => t.id !== id));
+    // Persist to API
+    try {
+      await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to remove todo:', err);
+    }
   }, []);
 
-  return { todos, loading, addTodo, toggleTodo, removeTodo };
+  return { todos, loading, addTodo, toggleTodo, removeTodo, refresh: fetchTodos };
 }
