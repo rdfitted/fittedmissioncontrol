@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export type TaskStatus = 'backlog' | 'active' | 'blocked' | 'review' | 'ready' | 'complete';
+export type TaskCategory = 'dev' | 'marketing' | 'both';
 
 export interface TaskMessage {
   id: string;
@@ -28,6 +29,8 @@ export interface Task {
   blockedAt?: number;      // Unix ms timestamp (matches backend)
   // Position for ordering within columns (lower = higher priority = top)
   position?: number;
+  // Category for filtering (dev, marketing, or both)
+  category?: TaskCategory;
 }
 
 export interface TodoItem {

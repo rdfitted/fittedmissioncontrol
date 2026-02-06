@@ -2,7 +2,7 @@
 
 import { useRef, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTasks, Task, TaskStatus, statusColors } from '@/hooks/use-tasks';
+import { useTasks, Task, TaskStatus, TaskCategory, statusColors } from '@/hooks/use-tasks';
 import { RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, Check, User, MessageSquare, GripVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TaskDetailModal } from '@/components/task-detail-modal';
@@ -250,6 +250,7 @@ export function KanbanBoard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'dev' | 'marketing'>('all');
   
   // Local state for optimistic UI during drag
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
@@ -274,6 +275,22 @@ export function KanbanBoard() {
     })
   );
 
+  // Filter tasks by category
+  const filteredTasks = useMemo(() => {
+    if (categoryFilter === 'all') {
+      return displayTasks;
+    }
+    // Filter for dev or marketing view
+    return displayTasks.filter(task => {
+      // Tasks with 'both' category show in both dev and marketing views
+      if (task.category === 'both') return true;
+      // Tasks with matching category
+      if (task.category === categoryFilter) return true;
+      // Tasks without category don't show in filtered views
+      return false;
+    });
+  }, [displayTasks, categoryFilter]);
+
   // Group tasks by status with position-based sorting
   const tasksByStatus: Record<TaskStatus, Task[]> = useMemo(() => {
     const grouped: Record<TaskStatus, Task[]> = {
@@ -285,7 +302,7 @@ export function KanbanBoard() {
       complete: [],
     };
 
-    displayTasks.forEach((task) => {
+    filteredTasks.forEach((task) => {
       if (grouped[task.status]) {
         grouped[task.status].push(task);
       }
@@ -301,7 +318,7 @@ export function KanbanBoard() {
     });
 
     return grouped;
-  }, [displayTasks]);
+  }, [filteredTasks]);
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -483,7 +500,7 @@ export function KanbanBoard() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded-full">
-                {tasks.length} tasks
+                {filteredTasks.length} tasks
               </span>
               <button
                 onClick={() => refresh()}
@@ -493,6 +510,39 @@ export function KanbanBoard() {
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
+          </div>
+          {/* Category Sub-tabs */}
+          <div className="flex items-center gap-1 mt-3">
+            <button
+              onClick={() => setCategoryFilter('dev')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                categoryFilter === 'dev'
+                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+              }`}
+            >
+              Dev
+            </button>
+            <button
+              onClick={() => setCategoryFilter('marketing')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                categoryFilter === 'marketing'
+                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+              }`}
+            >
+              Marketing
+            </button>
+            <button
+              onClick={() => setCategoryFilter('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                categoryFilter === 'all'
+                  ? 'bg-zinc-700 text-zinc-100 border border-zinc-600'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+              }`}
+            >
+              All
+            </button>
           </div>
         </CardHeader>
 

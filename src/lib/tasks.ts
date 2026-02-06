@@ -11,6 +11,7 @@ export const TODOS_FILE = path.join(TASKS_DIR, 'todos.json');
 
 export type TaskStatus = 'backlog' | 'in-progress' | 'blocked' | 'completed' | 'archived';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
+export type TaskCategory = 'dev' | 'marketing' | 'both';
 
 export interface ChatMessage {
   id: string;
@@ -52,6 +53,7 @@ export interface Task {
   files?: string[];      // Files this task touches (for coordination)
   chat: ChatMessage[];   // Embedded chat thread
   position?: number;     // Position within column for ordering (lower = higher priority)
+  category?: TaskCategory; // Category for filtering (dev, marketing, or both)
   
   // Workflow enforcement fields (mc-002)
   participants?: string[];           // Agents/humans who have participated in discussion
@@ -235,7 +237,7 @@ export interface UpdateTaskOptions {
 
 export async function updateTask(
   id: string, 
-  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt' | 'participants' | 'emergencyOverride' | 'position'>>,
+  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'assigned' | 'deliverable' | 'tags' | 'files' | 'completedBy' | 'blockedBy' | 'blockedAt' | 'participants' | 'emergencyOverride' | 'position' | 'category'>>,
   options: UpdateTaskOptions = {}
 ): Promise<Task | null> {
   const task = await getTaskById(id);
