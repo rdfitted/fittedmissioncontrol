@@ -9,8 +9,9 @@ import { AlertsPanel } from '@/components/alerts-panel';
 import { usePanelCollapse } from '@/hooks/use-panel-collapse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, MessageSquare, Activity, Calendar } from 'lucide-react';
+import { LayoutGrid, MessageSquare, Activity, Calendar, FileText } from 'lucide-react';
 import { PlanningTab } from '@/components/planning-tab';
+import { ContentTab } from '@/components/content-tab';
 
 export default function Dashboard() {
   const { collapsed, toggle, setPanel, isHydrated } = usePanelCollapse();
@@ -87,6 +88,13 @@ export default function Dashboard() {
                 <Activity className="w-4 h-4" />
                 Activity
               </TabsTrigger>
+              <TabsTrigger 
+                value="content"
+                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Content
+              </TabsTrigger>
             </TabsList>
 
             {/* Team Board Tab - Kanban takes full vertical space */}
@@ -126,6 +134,16 @@ export default function Dashboard() {
             >
               <div className="h-full">
                 <ActivityFeed fullHeight />
+              </div>
+            </TabsContent>
+
+            {/* Content Tab - CMS content review */}
+            <TabsContent 
+              value="content" 
+              className="flex-1 mt-0 overflow-hidden"
+            >
+              <div className="h-full">
+                <ContentTab />
               </div>
             </TabsContent>
           </Tabs>
