@@ -6,6 +6,7 @@ import { useTodos, TodoItem } from '@/hooks/use-tasks';
 
 interface TodoDrawerProps {
   defaultOpen?: boolean;
+  onToggleChange?: (isOpen: boolean) => void;
 }
 
 function TodoCheckbox({ 
@@ -79,7 +80,7 @@ function TodoItemRow({
   );
 }
 
-export function TodoDrawer({ defaultOpen = true }: TodoDrawerProps) {
+export function TodoDrawer({ defaultOpen = true, onToggleChange }: TodoDrawerProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -87,6 +88,17 @@ export function TodoDrawer({ defaultOpen = true }: TodoDrawerProps) {
 
   const pendingCount = todos.filter(t => !t.completed).length;
   const completedCount = todos.filter(t => t.completed).length;
+
+  // Sync with external state
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
+
+  const handleToggle = () => {
+    const newState = !isOpen;
+    setIsOpen(newState);
+    onToggleChange?.(newState);
+  };
 
   const handleAddTodo = () => {
     if (!inputValue.trim()) return;
@@ -112,7 +124,7 @@ export function TodoDrawer({ defaultOpen = true }: TodoDrawerProps) {
     >
       {/* Toggle button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className={`
           absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2
           w-6 h-12 rounded-l-lg bg-zinc-800 border border-zinc-700 border-r-0
@@ -123,19 +135,31 @@ export function TodoDrawer({ defaultOpen = true }: TodoDrawerProps) {
         {isOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
       </button>
 
+      {/* Collapsed state indicator */}
+      {!isOpen && (
+        <div className="h-full bg-zinc-900 border-l border-zinc-800 flex flex-col items-center pt-20 gap-2">
+          <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center">
+            <span className="text-xs font-bold text-blue-400">{pendingCount}</span>
+          </div>
+          <span className="text-[10px] text-zinc-500 writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>
+            Todos
+          </span>
+        </div>
+      )}
+
       {/* Drawer content */}
       <div 
         className={`
           h-full bg-zinc-900 border-l border-zinc-800
           flex flex-col
           transition-opacity duration-200
-          ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+          ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none absolute inset-0'}
         `}
       >
         {/* Header */}
         <div className="p-4 border-b border-zinc-800">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold text-zinc-100">Ryan's Tasks</h2>
+            <h2 className="font-semibold text-zinc-100">Quick Todos</h2>
             <div className="flex items-center gap-2 text-xs">
               {pendingCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400">

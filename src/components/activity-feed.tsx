@@ -3,12 +3,19 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ChevronDown, ChevronUp, Activity } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ActivityItem {
   type: 'file_change' | 'task_update' | 'chat_message';
   description: string;
   timestamp: string;
   file: string;
+}
+
+interface ActivityFeedProps {
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
 const typeIcons: Record<ActivityItem['type'], { icon: string; color: string }> = {
@@ -46,7 +53,7 @@ function ActivityRow({ activity }: { activity: ActivityItem }) {
   );
 }
 
-export function ActivityFeed() {
+export function ActivityFeed({ collapsed = false, onToggle }: ActivityFeedProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -68,10 +75,49 @@ export function ActivityFeed() {
     return () => clearInterval(interval);
   }, []);
 
+  // Collapsed view - minimal bar
+  if (collapsed) {
+    return (
+      <Card className="bg-zinc-950 border-zinc-800">
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-zinc-400" />
+              <CardTitle className="text-sm font-medium text-zinc-400">Activity</CardTitle>
+              <span className="text-xs text-zinc-500">
+                {activities.length} items
+              </span>
+            </div>
+            {onToggle && (
+              <button
+                onClick={onToggle}
+                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                aria-label="Expand panel"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <Card className="bg-zinc-950 border-zinc-800 h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold text-zinc-100">Activity</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold text-zinc-100">Activity</CardTitle>
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+              aria-label="Collapse panel"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px]">
