@@ -225,7 +225,7 @@ function ContentPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-[85vw] w-[85vw] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="outline" className={`gap-1.5 ${typeConfig[item.type].color}`}>
@@ -259,7 +259,7 @@ function ContentPreviewModal({
         </DialogHeader>
 
         {/* Content */}
-        <ScrollArea className="flex-1 my-4 pr-4">
+        <ScrollArea className="flex-1 my-4 pr-4 min-h-0">
           {loadingContent ? (
             <div className="flex items-center justify-center h-32 text-zinc-500">
               <RefreshCw className="w-5 h-5 animate-spin mr-2" />
