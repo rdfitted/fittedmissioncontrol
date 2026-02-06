@@ -68,6 +68,13 @@ export default function Dashboard() {
                 Team Board
               </TabsTrigger>
               <TabsTrigger 
+                value="content"
+                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Content
+              </TabsTrigger>
+              <TabsTrigger 
                 value="planning"
                 className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
               >
@@ -87,13 +94,6 @@ export default function Dashboard() {
               >
                 <Activity className="w-4 h-4" />
                 Activity
-              </TabsTrigger>
-              <TabsTrigger 
-                value="content"
-                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
-              >
-                <FileText className="w-4 h-4" />
-                Content
               </TabsTrigger>
             </TabsList>
 
