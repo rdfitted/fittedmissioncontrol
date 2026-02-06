@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getContentFull, updateContentStatus, ContentStatus } from '@/lib/content';
+import { getContentFull, updateContentStatus, updateContentFile, ContentStatus } from '@/lib/content';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -34,6 +34,50 @@ export async function GET(
     console.error('Error fetching content:', error);
     return NextResponse.json(
       { error: 'Failed to fetch content' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/content/:id
+ * 
+ * Update content file body
+ * 
+ * Body:
+ * {
+ *   content: string  // Full file content to save
+ * }
+ */
+export async function PUT(
+  request: NextRequest,
+  context: RouteContext
+) {
+  try {
+    const { id } = await context.params;
+    const body = await request.json();
+    
+    if (typeof body.content !== 'string') {
+      return NextResponse.json(
+        { error: 'Content is required and must be a string' },
+        { status: 400 }
+      );
+    }
+    
+    const updated = await updateContentFile(id, body.content);
+    
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'Content not found' },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json({ success: true, item: updated });
+  } catch (error) {
+    console.error('Error updating content file:', error);
+    return NextResponse.json(
+      { error: 'Failed to update content' },
       { status: 500 }
     );
   }
