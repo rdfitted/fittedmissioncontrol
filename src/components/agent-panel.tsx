@@ -260,7 +260,7 @@ export function AgentPanel({ collapsed = false, onToggle }: AgentPanelProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-200px)]">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
