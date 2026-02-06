@@ -225,7 +225,7 @@ function ContentPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="outline" className={`gap-1.5 ${typeConfig[item.type].color}`}>
@@ -266,8 +266,8 @@ function ContentPreviewModal({
               Loading content...
             </div>
           ) : (
-            <div className="prose prose-invert prose-sm max-w-none">
-              <pre className="whitespace-pre-wrap text-sm text-zinc-300 font-sans leading-relaxed">
+            <div className="prose prose-invert prose-sm max-w-none overflow-hidden">
+              <pre className="whitespace-pre-wrap text-sm text-zinc-300 font-sans leading-relaxed break-words overflow-x-hidden">
                 {fullContent || item.preview}
               </pre>
             </div>
