@@ -17,6 +17,7 @@ interface ActivityItem {
 interface ActivityFeedProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  fullHeight?: boolean;
 }
 
 const typeIcons: Record<ActivityItem['type'], { icon: string; color: string }> = {
@@ -46,7 +47,7 @@ function ActivityRow({ activity }: { activity: ActivityItem }) {
   );
 }
 
-export function ActivityFeed({ collapsed = false, onToggle }: ActivityFeedProps) {
+export function ActivityFeed({ collapsed = false, onToggle, fullHeight = false }: ActivityFeedProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,6 +93,41 @@ export function ActivityFeed({ collapsed = false, onToggle }: ActivityFeedProps)
             )}
           </div>
         </CardHeader>
+      </Card>
+    );
+  }
+
+  // Full height mode for dedicated Activity tab
+  if (fullHeight) {
+    return (
+      <Card className="bg-zinc-950 border-zinc-800 h-full flex flex-col">
+        <CardHeader className="pb-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold text-zinc-100">Activity Feed</CardTitle>
+            <span className="text-xs bg-zinc-800 px-2 py-1 rounded-full text-zinc-400">
+              {activities.length} items
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            {loading ? (
+              <div className="flex items-center justify-center h-full text-zinc-500">
+                Loading activity...
+              </div>
+            ) : activities.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-zinc-600">
+                No recent activity
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {activities.map((activity, idx) => (
+                  <ActivityRow key={idx} activity={activity} />
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
       </Card>
     );
   }

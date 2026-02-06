@@ -59,6 +59,8 @@ export async function GET(
  *   blockedAt?: number       // Unix ms timestamp (auto-set if not provided when blocking)
  *   tags?: string[]
  *   files?: string[]         // Files this task touches (for coordination)
+ *   position?: number        // Position within column for ordering (lower = higher priority)
+ *   category?: 'dev' | 'marketing' | 'both'  // Category for filtering
  * }
  * 
  * Coordination behavior:
@@ -166,6 +168,8 @@ export async function PATCH(
     if (body.tags !== undefined) updates.tags = body.tags;
     if (body.files !== undefined) updates.files = Array.isArray(body.files) ? body.files : undefined;
     if (body.participants !== undefined) updates.participants = Array.isArray(body.participants) ? body.participants : undefined;
+    if (body.position !== undefined) updates.position = body.position;
+    if (body.category !== undefined) updates.category = body.category;
     if (body.emergencyOverride !== undefined) {
       updates.emergencyOverride = body.emergencyOverride ? {
         authorizedBy: body.emergencyOverride.authorizedBy,
