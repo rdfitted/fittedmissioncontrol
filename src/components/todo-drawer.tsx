@@ -159,7 +159,7 @@ export function TodoDrawer({ defaultOpen = true, onToggleChange }: TodoDrawerPro
         {/* Header */}
         <div className="p-4 border-b border-zinc-800">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold text-zinc-100">Quick Todos</h2>
+            <h2 className="font-semibold text-zinc-100">Ryan's Tasks</h2>
             <div className="flex items-center gap-2 text-xs">
               {pendingCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
