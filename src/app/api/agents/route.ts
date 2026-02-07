@@ -4,10 +4,31 @@ import path from 'path';
 import os from 'os';
 import type { AgentSession, AgentsResponse } from '@/lib/api-types';
 
-// Path configurations
-const WORKSPACE_PATH = process.env.WORKSPACE_PATH || path.join(os.homedir(), 'Code Projects');
-const AGENTS_DIR = path.join(WORKSPACE_PATH, 'squad', 'agents');
-const CLAWDBOT_SESSIONS_PATH = path.join(os.homedir(), '.clawdbot', 'agents', 'main', 'sessions', 'sessions.json');
+// Path configurations - updated for new Clawdbot agent structure
+const CLAWDBOT_DIR = path.join(os.homedir(), '.clawdbot');
+const CLAWDBOT_CONFIG = path.join(CLAWDBOT_DIR, 'clawdbot.json');
+const CLAWDBOT_AGENTS_DIR = path.join(CLAWDBOT_DIR, 'agents');
+const CLAWDBOT_SESSIONS_PATH = path.join(CLAWDBOT_AGENTS_DIR, 'main', 'sessions', 'sessions.json');
+
+interface ClawdbotAgent {
+  id: string;
+  name?: string;
+  model?: string;
+  agentDir?: string;
+  default?: boolean;
+  subagents?: {
+    allowAgents?: string[];
+  };
+}
+
+interface ClawdbotConfig {
+  agents?: {
+    list?: ClawdbotAgent[];
+    defaults?: {
+      model?: { primary?: string };
+    };
+  };
+}
 
 interface ParsedAgent {
   id: string;
@@ -15,7 +36,7 @@ interface ParsedAgent {
   role: string;
   reportsTo: string | null;
   model: string;
-  filename: string;
+  agentDir: string;
 }
 
 interface SessionData {
@@ -31,52 +52,43 @@ interface SessionData {
 }
 
 /**
- * Parse a persona markdown file to extract agent metadata
+ * Parse SOUL.md to extract agent metadata
  */
-function parseAgentPersona(content: string, filename: string): ParsedAgent | null {
-  // Extract name from title (# SOUL.md — Name) or from **Name:** field
-  let name = '';
-  const titleMatch = content.match(/^#\s*SOUL\.md\s*[—-]\s*(.+)$/m);
-  if (titleMatch) {
-    name = titleMatch[1].trim();
+function parseSoulMd(content: string, agentId: string, configName?: string): Partial<ParsedAgent> {
+  const result: Partial<ParsedAgent> = {};
+  
+  // Extract name from first H1
+  const h1Match = content.match(/^#\s+(.+?)(?:\s*[—-]|$)/m);
+  if (h1Match) {
+    result.name = h1Match[1].trim();
   }
   
-  // Fallback to **Name:** field
-  const nameMatch = content.match(/\*\*Name:\*\*\s*(.+?)(?:\n|$)/);
-  if (nameMatch) {
-    name = nameMatch[1].trim();
+  // Extract role from ## Role section or **Primary:** field
+  const roleMatch = content.match(/\*\*Primary:\*\*\s*(.+?)(?:\n|$)/);
+  if (roleMatch) {
+    result.role = roleMatch[1].trim();
   }
   
-  if (!name) {
-    // Use filename as fallback
-    name = filename.replace('.md', '').split('-').map(w => 
-      w.charAt(0).toUpperCase() + w.slice(1)
-    ).join(' ');
-  }
-  
-  // Extract role
-  const roleMatch = content.match(/\*\*Role:\*\*\s*(.+?)(?:\n|$)/);
-  const role = roleMatch ? roleMatch[1].trim() : 'Agent';
-  
-  // Extract reports-to
+  // Extract reports to
   const reportsToMatch = content.match(/\*\*Reports to:\*\*\s*(.+?)(?:\n|$)/);
-  const reportsTo = reportsToMatch ? reportsToMatch[1].trim() : null;
+  if (reportsToMatch) {
+    const reportTo = reportsToMatch[1].trim();
+    // Parse "Knox (Architect)" -> "knox"
+    const nameMatch = reportTo.match(/^(\w+)/);
+    if (nameMatch) {
+      let reportsTo = nameMatch[1].toLowerCase();
+      // Map "hex" to "main" since Hex is the main agent
+      if (reportsTo === 'hex') reportsTo = 'main';
+      result.reportsTo = reportsTo;
+    }
+  }
   
-  // Extract model from Model Assignment section
-  const modelMatch = content.match(/\*\*Model:\*\*\s*(.+?)(?:\n|$)/);
-  const model = modelMatch ? modelMatch[1].trim() : 'claude-sonnet-4';
+  // Use config name as fallback
+  if (!result.name && configName) {
+    result.name = configName;
+  }
   
-  // Generate ID from filename
-  const id = filename.replace('.md', '').toLowerCase();
-  
-  return {
-    id,
-    name,
-    role,
-    reportsTo,
-    model,
-    filename,
-  };
+  return result;
 }
 
 /**
@@ -98,23 +110,27 @@ function determineStatus(session: SessionData | null, now: number): 'active' | '
  * Find matching session for an agent
  */
 function findAgentSession(
-  agentName: string, 
   agentId: string,
   sessions: Record<string, SessionData>
 ): SessionData | null {
-  // Check for main agent
-  if (agentName.toLowerCase() === 'hex prime' || agentId === 'hex-prime') {
+  // Main agent
+  if (agentId === 'main') {
     return sessions['agent:main:main'] || null;
   }
   
-  // Search for subagent by label containing agent name
-  const nameLower = agentName.toLowerCase();
+  // Look for subagent sessions
   const idLower = agentId.toLowerCase();
   
   for (const [key, session] of Object.entries(sessions)) {
+    // Match agent:knox:*, agent:vault:*, etc.
+    if (key.startsWith(`agent:${idLower}:`)) {
+      return session;
+    }
+    
+    // Also check label for spawned subagents
     if (key.includes(':subagent:') && session.label) {
       const labelLower = session.label.toLowerCase();
-      if (labelLower.includes(nameLower) || labelLower.includes(idLower)) {
+      if (labelLower.includes(idLower) || labelLower.startsWith(idLower)) {
         return session;
       }
     }
@@ -130,35 +146,44 @@ function getModelProvider(model: string): string {
   if (model.includes('claude') || model.includes('anthropic')) return 'anthropic';
   if (model.includes('gpt') || model.includes('openai')) return 'openai';
   if (model.includes('gemini') || model.includes('google')) return 'google';
-  return 'anthropic'; // default
+  return 'anthropic';
 }
+
+/**
+ * Build hierarchy from known relationships
+ */
+const HIERARCHY: Record<string, string> = {
+  // Dev team reports to Knox
+  'vault': 'knox',
+  'aria': 'knox',
+  'scout': 'knox',
+  // Knox and marketing report to Hex (main)
+  'knox': 'main',
+  'rigor': 'main',
+  'sterling': 'main',
+  'recon': 'main',
+  // Marketing team reports to Sterling
+  'pulse': 'sterling',
+  'reach': 'sterling',
+  'iris': 'sterling',
+  'slate': 'sterling',
+};
 
 export async function GET() {
   try {
     const now = Date.now();
     
-    // Read all agent persona files
-    let agentFiles: string[] = [];
+    // Read Clawdbot config for agent list
+    let config: ClawdbotConfig = {};
     try {
-      const files = await fs.readdir(AGENTS_DIR);
-      agentFiles = files.filter(f => f.endsWith('.md'));
-    } catch {
-      console.warn('Could not read agents directory:', AGENTS_DIR);
+      const configContent = await fs.readFile(CLAWDBOT_CONFIG, 'utf-8');
+      config = JSON.parse(configContent);
+    } catch (err) {
+      console.warn('Could not read clawdbot config:', err);
     }
     
-    // Parse persona files
-    const parsedAgents: ParsedAgent[] = [];
-    for (const filename of agentFiles) {
-      try {
-        const content = await fs.readFile(path.join(AGENTS_DIR, filename), 'utf-8');
-        const agent = parseAgentPersona(content, filename);
-        if (agent) {
-          parsedAgents.push(agent);
-        }
-      } catch (err) {
-        console.warn(`Failed to parse ${filename}:`, err);
-      }
-    }
+    const configAgents = config.agents?.list || [];
+    const defaultModel = config.agents?.defaults?.model?.primary || 'claude-opus-4-5';
     
     // Read sessions data
     let sessions: Record<string, SessionData> = {};
@@ -166,61 +191,64 @@ export async function GET() {
       const sessionsContent = await fs.readFile(CLAWDBOT_SESSIONS_PATH, 'utf-8');
       sessions = JSON.parse(sessionsContent);
     } catch {
-      console.warn('Could not read sessions file:', CLAWDBOT_SESSIONS_PATH);
+      console.warn('Could not read sessions file');
     }
     
-    // Check if Hex Prime exists in personas, if not add it as the main agent
-    const hasHexPrime = parsedAgents.some(a => 
-      a.name.toLowerCase() === 'hex prime' || a.id === 'hex-prime'
-    );
+    // Build agent list from config + SOUL.md files
+    const parsedAgents: ParsedAgent[] = [];
     
-    if (!hasHexPrime) {
-      // Add Hex Prime from main session if available
-      const mainSession = sessions['agent:main:main'];
-      parsedAgents.unshift({
-        id: 'hex-prime',
-        name: 'Hex Prime',
-        role: 'Main Agent / Coordinator',
-        reportsTo: null,
-        model: mainSession?.model || 'claude-opus-4-5',
-        filename: '',
+    for (const agent of configAgents) {
+      let soulData: Partial<ParsedAgent> = {};
+      
+      // Read SOUL.md if agentDir exists
+      if (agent.agentDir) {
+        try {
+          const soulPath = path.join(agent.agentDir, 'SOUL.md');
+          const soulContent = await fs.readFile(soulPath, 'utf-8');
+          soulData = parseSoulMd(soulContent, agent.id, agent.name);
+        } catch {
+          // No SOUL.md, use config values
+        }
+      }
+      
+      parsedAgents.push({
+        id: agent.id,
+        name: soulData.name || agent.name || agent.id.charAt(0).toUpperCase() + agent.id.slice(1),
+        role: soulData.role || (agent.id === 'main' ? 'Chief of Staff / Coordinator' : 'Agent'),
+        reportsTo: soulData.reportsTo || HIERARCHY[agent.id] || null,
+        model: agent.model || defaultModel,
+        agentDir: agent.agentDir || '',
       });
     }
     
-    // Build name-to-id mapping for parent resolution
-    const nameToId = new Map<string, string>();
-    for (const agent of parsedAgents) {
-      nameToId.set(agent.name.toLowerCase(), agent.id);
-      // Also map without spaces
-      nameToId.set(agent.name.toLowerCase().replace(/\s+/g, '-'), agent.id);
+    // If no agents in config, add main as fallback
+    if (parsedAgents.length === 0) {
+      parsedAgents.push({
+        id: 'main',
+        name: 'Hex',
+        role: 'Chief of Staff / Coordinator',
+        reportsTo: null,
+        model: defaultModel,
+        agentDir: path.join(CLAWDBOT_AGENTS_DIR, 'main'),
+      });
     }
     
-    // Build parent-children relationships
+    // Build children map
     const childrenMap = new Map<string, string[]>();
     for (const agent of parsedAgents) {
       if (agent.reportsTo) {
-        const parentId = nameToId.get(agent.reportsTo.toLowerCase()) || 
-                         agent.reportsTo.toLowerCase().replace(/\s+/g, '-');
-        const children = childrenMap.get(parentId) || [];
+        const children = childrenMap.get(agent.reportsTo) || [];
         children.push(agent.id);
-        childrenMap.set(parentId, children);
+        childrenMap.set(agent.reportsTo, children);
       }
     }
     
     // Build final agent list
     const agents: AgentSession[] = parsedAgents.map(parsed => {
-      const session = findAgentSession(parsed.name, parsed.id, sessions);
+      const session = findAgentSession(parsed.id, sessions);
       const status = determineStatus(session, now);
       
-      // Resolve parent ID
-      let parentId: string | undefined;
-      if (parsed.reportsTo) {
-        parentId = nameToId.get(parsed.reportsTo.toLowerCase()) ||
-                   parsed.reportsTo.toLowerCase().replace(/\s+/g, '-');
-      }
-      
-      // Determine agent type
-      const isMain = parsed.name.toLowerCase() === 'hex prime' || parsed.id === 'hex-prime';
+      const isMain = parsed.id === 'main';
       
       return {
         id: parsed.id,
@@ -230,7 +258,7 @@ export async function GET() {
         status,
         model: session?.model || parsed.model,
         modelProvider: getModelProvider(session?.model || parsed.model),
-        parent: parentId,
+        parent: parsed.reportsTo || undefined,
         children: childrenMap.get(parsed.id) || [],
         updatedAt: session?.updatedAt || now,
         totalTokens: session?.totalTokens || 0,
@@ -240,6 +268,13 @@ export async function GET() {
         label: parsed.role,
         lastMessage: undefined,
       };
+    });
+    
+    // Sort: main first, then by name
+    agents.sort((a, b) => {
+      if (a.id === 'main') return -1;
+      if (b.id === 'main') return 1;
+      return a.name.localeCompare(b.name);
     });
     
     // Count active agents
