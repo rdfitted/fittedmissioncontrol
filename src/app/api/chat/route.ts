@@ -17,81 +17,61 @@ interface ParsedChat {
   currentDate: string | null;
 }
 
-/**
- * Generate a synthetic timestamp from date and message index
- * Since chat.md doesn't have precise timestamps, we create synthetic ones
- * based on the date header and spread messages throughout the day
- */
-function generateTimestamp(date: string, index: number, totalForDate: number): string {
-  const baseDate = new Date(date + 'T09:00:00');
-  // Spread messages from 9am to 5pm (8 hours = 480 minutes)
-  const minutesSpread = Math.floor((480 / Math.max(totalForDate, 1)) * index);
-  baseDate.setMinutes(baseDate.getMinutes() + minutesSpread);
-  return baseDate.toISOString();
-}
-
 function parseChat(content: string): ParsedChat {
   const messages: ChatMessage[] = [];
-  let currentDate: string | null = null;
+  let messageId = 0;
   
-  // First pass: count messages per date for timestamp distribution
-  const dateMessageCounts: Record<string, number> = {};
-  const dateMessageIndices: Record<string, number> = {};
-  const lines = content.split('\n');
+  // Split by message blocks (--- separator)
+  const blocks = content.split(/^---$/m);
   
-  // Pre-count messages per date
-  let tempDate: string | null = null;
-  for (const line of lines) {
-    const dateMatch = line.match(/^##\s+(\d{4}-\d{2}-\d{2})/);
-    if (dateMatch) {
-      tempDate = dateMatch[1];
-      if (!dateMessageCounts[tempDate]) {
-        dateMessageCounts[tempDate] = 0;
-        dateMessageIndices[tempDate] = 0;
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    
+    // New format: **[2026-02-06 15:26 HST] AgentName**
+    const newFormatMatch = trimmed.match(/^\*\*\[(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s*(?:HST)?\]\s*([^*]+)\*\*/);
+    if (newFormatMatch) {
+      const [, date, time, agent] = newFormatMatch;
+      // Get message content (everything after the header line)
+      const lines = trimmed.split('\n');
+      const messageContent = lines.slice(1).join('\n').trim();
+      
+      if (messageContent) {
+        const timestamp = new Date(`${date}T${time}:00-10:00`).toISOString(); // HST = UTC-10
+        messages.push({
+          id: `msg-${messageId++}`,
+          agent: agent.trim(),
+          message: messageContent.slice(0, 500), // Truncate long messages
+          timestamp,
+          date,
+        });
       }
       continue;
     }
     
-    const messageMatch = line.match(/^\*\*([^*]+):\*\*\s*(.+)/);
-    if (messageMatch && tempDate) {
-      dateMessageCounts[tempDate]++;
+    // Old format: **AgentName:** message (single line)
+    const lines = trimmed.split('\n');
+    for (const line of lines) {
+      const oldFormatMatch = line.match(/^\*\*([^*:]+):\*\*\s*(.+)/);
+      if (oldFormatMatch) {
+        const [, agent, msg] = oldFormatMatch;
+        // Skip if agent name looks like a label (contains special chars or is too long)
+        if (agent.length > 30 || /[[\]()]/.test(agent)) continue;
+        
+        messages.push({
+          id: `msg-${messageId++}`,
+          agent: agent.trim(),
+          message: msg.trim(),
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   }
   
-  // Second pass: build messages with timestamps
-  let messageId = 0;
-  for (const line of lines) {
-    // Check for date headers
-    const dateMatch = line.match(/^##\s+(\d{4}-\d{2}-\d{2})/);
-    if (dateMatch) {
-      currentDate = dateMatch[1];
-      continue;
-    }
-    
-    // Check for messages: **Agent Name:** message
-    const messageMatch = line.match(/^\*\*([^*]+):\*\*\s*(.+)/);
-    if (messageMatch) {
-      const agent = messageMatch[1].trim();
-      const msg = messageMatch[2].trim();
-      const msgDate = currentDate || new Date().toISOString().split('T')[0];
-      
-      // Generate timestamp based on date and position
-      const idx = dateMessageIndices[msgDate] || 0;
-      const total = dateMessageCounts[msgDate] || 1;
-      const timestamp = generateTimestamp(msgDate, idx, total);
-      dateMessageIndices[msgDate] = idx + 1;
-      
-      messages.push({
-        id: `msg-${messageId++}`,
-        agent,
-        message: msg,
-        timestamp,
-        date: currentDate || undefined,
-      });
-    }
-  }
+  // Sort by timestamp
+  messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   
-  return { messages, currentDate };
+  return { messages, currentDate: null };
 }
 
 export async function GET() {
