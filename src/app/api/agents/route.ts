@@ -157,9 +157,9 @@ const HIERARCHY: Record<string, string> = {
   'vault': 'knox',
   'aria': 'knox',
   'scout': 'knox',
+  'rigor': 'knox',
   // Knox and marketing report to Hex (main)
   'knox': 'main',
-  'rigor': 'main',
   'sterling': 'main',
   'recon': 'main',
   // Marketing team reports to Sterling
