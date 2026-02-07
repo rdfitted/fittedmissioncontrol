@@ -97,22 +97,58 @@ function mapStatus(legacyStatus: string): TaskStatus {
   return mapping[legacyStatus] || 'backlog';
 }
 
-interface LegacyTask {
+// API response types (replacing 'any' in fetch handlers)
+interface ApiChatMessage {
+  id: string;
+  author?: string;
+  agent?: string;
+  content?: string;
+  message?: string;
+  timestamp: number | string;
+}
+
+interface ApiSubtask {
+  id?: string;
+  title: string;
+  status?: SubtaskStatus;
+  assigned?: string;
+  assignee?: string;
+  delegatedBy?: string;
+  delegatedAt?: number;
+}
+
+interface ApiTask {
   id: string;
   title: string;
+  status?: string;
   assigned?: string;
-  priority?: string;
+  priority?: 'High' | 'Medium' | 'Low';
   description?: string;
   deliverable?: string;
   completedBy?: string;
   date?: string;
   summary?: string;
+  chat?: ApiChatMessage[];
+  subtasks?: ApiSubtask[];
+  blockedBy?: string;
+  blockedAt?: number;
+  position?: number;
+  category?: TaskCategory;
+  created?: string;
+  updated?: string;
 }
 
-interface LegacyTasksData {
-  backlog: LegacyTask[];
-  inProgress: LegacyTask[];
-  completed: LegacyTask[];
+interface ApiTasksResponse {
+  tasks?: ApiTask[];
+  grouped?: {
+    backlog?: ApiTask[];
+    inProgress?: ApiTask[];
+    completed?: ApiTask[];
+  };
+  // Legacy format fields
+  backlog?: ApiTask[];
+  inProgress?: ApiTask[];
+  completed?: ApiTask[];
 }
 
 export function useTasks(refreshInterval = 10000) {
@@ -137,50 +173,53 @@ export function useTasks(refreshInterval = 10000) {
     try {
       const res = await fetch('/api/tasks');
       if (!res.ok) throw new Error('Failed to fetch tasks');
-      const data = await res.json();
+      const data: ApiTasksResponse = await res.json();
+      
+      // Helper to transform API task to Task
+      const transformApiTask = (t: ApiTask): Task => ({
+        ...t,
+        status: mapStatus(t.status || 'backlog'),
+        priority: t.priority,
+        // Map chat messages: author→agent, content→message
+        messages: (t.chat || []).map((msg: ApiChatMessage) => ({
+          id: msg.id,
+          agent: msg.author || msg.agent || 'Unknown',
+          message: msg.content || msg.message || '',
+          timestamp: typeof msg.timestamp === 'number' 
+            ? new Date(msg.timestamp).toISOString() 
+            : msg.timestamp,
+        })),
+        // Map subtasks (normalize assignee/assigned)
+        subtasks: (t.subtasks || []).map((sub: ApiSubtask, index: number) => ({
+          id: sub.id || `${t.id}-sub-${index}`,
+          title: sub.title,
+          status: sub.status || 'backlog',
+          assigned: sub.assigned || sub.assignee,
+          delegatedBy: sub.delegatedBy,
+          delegatedAt: sub.delegatedAt,
+        })),
+      });
       
       // Handle new API format: { tasks, grouped, total } or legacy format
       let transformedTasks: Task[] = [];
       
       if (data.tasks && Array.isArray(data.tasks)) {
         // New API format - map status values and chat field names
-        transformedTasks = data.tasks.map((t: any) => ({
-          ...t,
-          status: mapStatus(t.status || 'backlog'),
-          priority: t.priority as Task['priority'],
-          // Map chat messages: author→agent, content→message
-          messages: (t.chat || []).map((msg: any) => ({
-            id: msg.id,
-            agent: msg.author || msg.agent || 'Unknown',
-            message: msg.content || msg.message || '',
-            timestamp: typeof msg.timestamp === 'number' 
-              ? new Date(msg.timestamp).toISOString() 
-              : msg.timestamp,
-          })),
-          // Map subtasks (normalize assignee/assigned)
-          subtasks: (t.subtasks || []).map((sub: any) => ({
-            id: sub.id || `sub-${Math.random().toString(36).slice(2)}`,
-            title: sub.title,
-            status: sub.status || 'backlog',
-            assigned: sub.assigned || sub.assignee,
-            delegatedBy: sub.delegatedBy,
-            delegatedAt: sub.delegatedAt,
-          })),
-        }));
+        transformedTasks = data.tasks.map(transformApiTask);
       } else if (data.grouped) {
         // New API format with grouped object
         const grouped = data.grouped;
         transformedTasks = [
-          ...(grouped.backlog || []).map((t: any) => ({ ...t, status: 'backlog' as TaskStatus, priority: t.priority as Task['priority'] })),
-          ...(grouped.inProgress || []).map((t: any) => ({ ...t, status: 'active' as TaskStatus, priority: t.priority as Task['priority'] })),
-          ...(grouped.completed || []).map((t: any) => ({ ...t, status: 'ready' as TaskStatus, priority: t.priority as Task['priority'] })),
+          ...(grouped.backlog || []).map((t: ApiTask) => ({ ...transformApiTask(t), status: 'backlog' as TaskStatus })),
+          ...(grouped.inProgress || []).map((t: ApiTask) => ({ ...transformApiTask(t), status: 'active' as TaskStatus })),
+          ...(grouped.completed || []).map((t: ApiTask) => ({ ...transformApiTask(t), status: 'ready' as TaskStatus })),
         ];
       } else if (data.backlog || data.inProgress || data.completed) {
         // Legacy format
         transformedTasks = [
-          ...(data.backlog || []).map((t: any) => ({ ...t, status: 'backlog' as TaskStatus, priority: t.priority as Task['priority'] })),
-          ...(data.inProgress || []).map((t: any) => ({ ...t, status: 'active' as TaskStatus, priority: t.priority as Task['priority'] })),
-          ...(data.completed || []).map((t: any) => ({ ...t, status: 'ready' as TaskStatus, priority: t.priority as Task['priority'] })),
+          ...(data.backlog || []).map((t: ApiTask) => ({ ...transformApiTask(t), status: 'backlog' as TaskStatus })),
+          ...(data.inProgress || []).map((t: ApiTask) => ({ ...transformApiTask(t), status: 'active' as TaskStatus })),
+          ...(data.completed || []).map((t: ApiTask) => ({ ...transformApiTask(t), status: 'ready' as TaskStatus })),
         ];
       }
       
@@ -290,11 +329,10 @@ export function useTasks(refreshInterval = 10000) {
     // Optimistic update
     setTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t;
-      const subtasks = (t as any).subtasks as Subtask[] | undefined;
-      if (!subtasks) return t;
+      if (!t.subtasks) return t;
       return {
         ...t,
-        subtasks: subtasks.map(s => 
+        subtasks: t.subtasks.map(s => 
           s.id === subtaskId 
             ? { ...s, status: s.status === 'complete' ? 'backlog' as SubtaskStatus : 'complete' as SubtaskStatus }
             : s

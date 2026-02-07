@@ -26,6 +26,16 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Type for DnD sortable context data
+interface SortableData {
+  sortable?: {
+    containerId?: string;
+    index?: number;
+  };
+  type?: 'task';
+  task?: Task;
+}
+
 // Column configuration
 const KANBAN_COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'backlog', label: 'Backlog' },
@@ -430,7 +440,8 @@ export function KanbanBoard() {
       targetPosition = overTask.position ?? 0;
     } else {
       // Dropping on empty column - check data attribute
-      const columnStatus = (over.data.current as any)?.sortable?.containerId;
+      const sortableData = over.data.current as SortableData | undefined;
+      const columnStatus = sortableData?.sortable?.containerId;
       if (columnStatus && KANBAN_COLUMNS.some(c => c.status === columnStatus)) {
         targetStatus = columnStatus as TaskStatus;
         targetPosition = 0;
@@ -446,7 +457,7 @@ export function KanbanBoard() {
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+    const { over } = event;
     
     if (!over) {
       // Dropped outside any droppable - cancel
@@ -454,13 +465,13 @@ export function KanbanBoard() {
       return;
     }
     
-    const activeId = active.id as string;
     const overId = over.id as string;
     
     // Determine final target status from where we dropped
     const overTask = tasks.find(t => t.id === overId);
+    const sortableData = over.data.current as SortableData | undefined;
     const targetStatus = overTask?.status || 
-      (over.data.current as any)?.sortable?.containerId as TaskStatus;
+      sortableData?.sortable?.containerId as TaskStatus;
     
     endDrag(overId, targetStatus);
   };
