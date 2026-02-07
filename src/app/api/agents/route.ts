@@ -8,7 +8,9 @@ import type { AgentSession, AgentsResponse } from '@/lib/api-types';
 const CLAWDBOT_DIR = path.join(os.homedir(), '.clawdbot');
 const CLAWDBOT_CONFIG = path.join(CLAWDBOT_DIR, 'clawdbot.json');
 const CLAWDBOT_AGENTS_DIR = path.join(CLAWDBOT_DIR, 'agents');
-const CLAWDBOT_SESSIONS_PATH = path.join(CLAWDBOT_AGENTS_DIR, 'main', 'sessions', 'sessions.json');
+
+// List of all agent IDs to check for sessions
+const ALL_AGENT_IDS = ['main', 'knox', 'vault', 'aria', 'scout', 'rigor', 'sterling', 'pulse', 'reach', 'iris', 'recon', 'slate'];
 
 interface ClawdbotAgent {
   id: string;
@@ -185,13 +187,24 @@ export async function GET() {
     const configAgents = config.agents?.list || [];
     const defaultModel = config.agents?.defaults?.model?.primary || 'claude-opus-4-5';
     
-    // Read sessions data
+    // Read sessions data from ALL agent directories
     let sessions: Record<string, SessionData> = {};
-    try {
-      const sessionsContent = await fs.readFile(CLAWDBOT_SESSIONS_PATH, 'utf-8');
-      sessions = JSON.parse(sessionsContent);
-    } catch {
-      console.warn('Could not read sessions file');
+    for (const agentId of ALL_AGENT_IDS) {
+      try {
+        const sessionsPath = path.join(CLAWDBOT_AGENTS_DIR, agentId, 'sessions', 'sessions.json');
+        const sessionsContent = await fs.readFile(sessionsPath, 'utf-8');
+        const agentSessions = JSON.parse(sessionsContent);
+        // Merge sessions, newer timestamps win
+        for (const [key, session] of Object.entries(agentSessions)) {
+          const existingSession = sessions[key] as SessionData | undefined;
+          const newSession = session as SessionData;
+          if (!existingSession || newSession.updatedAt > existingSession.updatedAt) {
+            sessions[key] = newSession;
+          }
+        }
+      } catch {
+        // No sessions file for this agent, skip
+      }
     }
     
     // Build agent list from config + SOUL.md files

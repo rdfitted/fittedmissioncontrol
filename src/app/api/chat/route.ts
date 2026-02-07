@@ -94,15 +94,83 @@ function parseChat(content: string): ParsedChat {
   return { messages, currentDate };
 }
 
+const TASKS_DIR = path.join(process.cwd(), '..', 'squad', 'tasks', 'json');
+
+interface TaskChatMessage {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: number; // ms since epoch
+}
+
+interface TaskFile {
+  id: string;
+  title: string;
+  chat?: TaskChatMessage[];
+}
+
+/**
+ * Read all task JSON files and extract chat messages
+ */
+async function getTaskChatMessages(): Promise<ChatMessage[]> {
+  const messages: ChatMessage[] = [];
+  
+  try {
+    const files = await fs.readdir(TASKS_DIR);
+    const jsonFiles = files.filter(f => f.endsWith('.json'));
+    
+    for (const file of jsonFiles) {
+      try {
+        const content = await fs.readFile(path.join(TASKS_DIR, file), 'utf-8');
+        const task: TaskFile = JSON.parse(content);
+        
+        if (task.chat && Array.isArray(task.chat)) {
+          for (const msg of task.chat) {
+            // Capitalize author name
+            const author = msg.author.charAt(0).toUpperCase() + msg.author.slice(1);
+            messages.push({
+              id: `task-${task.id}-${msg.id}`,
+              agent: author,
+              message: `[${task.title}] ${msg.content.slice(0, 200)}${msg.content.length > 200 ? '...' : ''}`,
+              timestamp: new Date(msg.timestamp).toISOString(),
+            });
+          }
+        }
+      } catch {
+        // Skip invalid task files
+      }
+    }
+  } catch {
+    // Tasks dir doesn't exist
+  }
+  
+  return messages;
+}
+
 export async function GET() {
   try {
-    const content = await fs.readFile(CHAT_FILE, 'utf-8');
-    const { messages } = parseChat(content);
+    // Get messages from chat.md
+    let chatMdMessages: ChatMessage[] = [];
+    try {
+      const content = await fs.readFile(CHAT_FILE, 'utf-8');
+      const { messages } = parseChat(content);
+      chatMdMessages = messages;
+    } catch {
+      // chat.md doesn't exist
+    }
+    
+    // Get messages from task JSON files
+    const taskMessages = await getTaskChatMessages();
+    
+    // Merge and sort by timestamp (newest last for chat display)
+    const allMessages = [...chatMdMessages, ...taskMessages];
+    allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    // Return last 100 messages
+    const recentMessages = allMessages.slice(-100);
     
     return NextResponse.json({ 
-      messages,
-      // Could add cursor-based pagination later
-      // nextCursor: messages.length > 0 ? messages[messages.length - 1].id : undefined
+      messages: recentMessages,
     });
   } catch (error) {
     console.error('Error reading chat:', error);
