@@ -9,9 +9,10 @@ import { AlertsPanel } from '@/components/alerts-panel';
 import { usePanelCollapse } from '@/hooks/use-panel-collapse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, MessageSquare, Activity, Calendar, FileText } from 'lucide-react';
+import { LayoutGrid, MessageSquare, Activity, Calendar, FileText, Users } from 'lucide-react';
 import { PlanningTab } from '@/components/planning-tab';
 import { ContentTab } from '@/components/content-tab';
+import { CrmTab } from '@/components/crm-tab';
 
 export default function Dashboard() {
   const { collapsed, toggle, setPanel, isHydrated } = usePanelCollapse();
@@ -68,6 +69,13 @@ export default function Dashboard() {
                 Team Board
               </TabsTrigger>
               <TabsTrigger 
+                value="crm"
+                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
+              >
+                <Users className="w-4 h-4" />
+                CRM
+              </TabsTrigger>
+              <TabsTrigger 
                 value="content"
                 className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
               >
@@ -104,6 +112,16 @@ export default function Dashboard() {
             >
               <div className="h-full">
                 <KanbanBoard />
+              </div>
+            </TabsContent>
+
+            {/* CRM Tab */}
+            <TabsContent 
+              value="crm" 
+              className="flex-1 mt-0 overflow-hidden"
+            >
+              <div className="h-full">
+                <CrmTab />
               </div>
             </TabsContent>
 
