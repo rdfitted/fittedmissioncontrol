@@ -53,7 +53,7 @@ export async function POST(
       const response = await fetch(`${gwUrl}?${params.toString()}`);
       const result = await response.json();
       
-      if (result.success && result.draftId) {
+      if ((result.success || result.ok) && result.draftId) {
         gmailDraftId = result.draftId;
       } else {
         console.warn('Gmail draft creation warning:', result);
