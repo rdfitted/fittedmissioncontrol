@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ import {
   AlertCircle,
   ExternalLink,
   CheckCircle,
+  Edit,
 } from 'lucide-react';
 import { formatTimestamp } from '@/lib/format-timestamp';
 import ReactMarkdown from 'react-markdown';
@@ -69,6 +71,14 @@ export interface InboxEmail {
   labels: string[];
 }
 
+// ============ Helper Functions ============
+
+function isEdited(draft: EmailDraft): boolean {
+  const created = new Date(draft.createdAt).getTime();
+  const updated = new Date(draft.updatedAt).getTime();
+  return updated > created + 60000; // 60 seconds
+}
+
 // ============ Pending Draft Card ============
 
 function PendingDraftCard({ 
@@ -76,11 +86,13 @@ function PendingDraftCard({
   onApprove, 
   onReject,
   onClick,
+  onEdit,
 }: { 
   draft: EmailDraft;
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onClick: (draft: EmailDraft) => void;
+  onEdit: (draft: EmailDraft) => void;
 }) {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -106,6 +118,12 @@ function PendingDraftCard({
               <Mail className="w-3 h-3 mr-1" />
               Pending
             </Badge>
+            {isEdited(draft) && (
+              <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                <Edit className="w-3 h-3 mr-1" />
+                Edited
+              </Badge>
+            )}
             <span 
               className="text-xs text-zinc-500 cursor-help"
               title={timestamp.tooltip}
@@ -183,6 +201,14 @@ function PendingDraftCard({
           <Button
             size="sm"
             variant="outline"
+            onClick={() => onEdit(draft)}
+            className="bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+          >
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => onApprove(draft.id)}
             className="flex-1 bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
           >
@@ -209,10 +235,12 @@ function ApprovedDraftCard({
   draft, 
   onSend,
   onClick,
+  onEdit,
 }: { 
   draft: EmailDraft;
   onSend: (id: string) => void;
   onClick: (draft: EmailDraft) => void;
+  onEdit: (draft: EmailDraft) => void;
 }) {
   const timestamp = formatTimestamp(draft.updatedAt);
 
@@ -221,7 +249,7 @@ function ApprovedDraftCard({
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
               <CheckCircle className="w-3 h-3 mr-1" />
               Approved
@@ -272,15 +300,26 @@ function ApprovedDraftCard({
         </div>
       )}
 
-      {/* Send Action */}
-      <Button
-        size="sm"
-        onClick={() => onSend(draft.id)}
-        className="w-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-semibold"
-      >
-        <Send className="w-4 h-4 mr-1.5" />
-        Send Now
-      </Button>
+      {/* Actions */}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onEdit(draft)}
+          className="bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+        >
+          <Edit className="w-4 h-4 mr-1.5" />
+          Edit
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => onSend(draft.id)}
+          className="flex-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-semibold"
+        >
+          <Send className="w-4 h-4 mr-1.5" />
+          Send Now
+        </Button>
+      </div>
     </div>
   );
 }
@@ -666,6 +705,141 @@ function DraftPreviewModal({
   );
 }
 
+// ============ Edit Draft Modal ============
+
+function EditDraftModal({
+  draft,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  draft: EmailDraft | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (updates: { subject?: string; recipientEmail?: string; recipientName?: string; draftBody?: string }) => void;
+}) {
+  const [subject, setSubject] = useState('');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [draftBody, setDraftBody] = useState('');
+
+  // Update local state when draft changes
+  useEffect(() => {
+    if (draft) {
+      setSubject(draft.subject);
+      setRecipientName(draft.recipient.name);
+      setRecipientEmail(draft.recipient.email);
+      setDraftBody(draft.draftBody);
+    }
+  }, [draft]);
+
+  if (!draft) return null;
+
+  const handleSave = () => {
+    onSave({
+      subject,
+      recipientEmail,
+      recipientName,
+      draftBody,
+    });
+    onOpenChange(false);
+  };
+
+  const charCount = draftBody.length;
+  const wordCount = draftBody.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-xl text-zinc-100">
+            Edit Email Draft
+          </DialogTitle>
+          <div className="text-sm text-zinc-400 mt-1">
+            {draft.status === 'approved' && (
+              <div className="flex items-center gap-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded mt-2">
+                <AlertCircle className="w-4 h-4 text-yellow-400" />
+                <span className="text-xs text-yellow-400">
+                  Editing an approved draft will move it back to pending (requires re-approval)
+                </span>
+              </div>
+            )}
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Recipient Name */}
+          <div>
+            <label className="text-xs text-zinc-500 mb-1 block">Recipient Name:</label>
+            <Input
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
+              className="bg-zinc-900 border-zinc-800 text-zinc-100"
+              placeholder="John Doe"
+            />
+          </div>
+
+          {/* Recipient Email */}
+          <div>
+            <label className="text-xs text-zinc-500 mb-1 block">Recipient Email:</label>
+            <Input
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              className="bg-zinc-900 border-zinc-800 text-zinc-100"
+              placeholder="john@example.com"
+              type="email"
+            />
+          </div>
+
+          {/* Subject */}
+          <div>
+            <label className="text-xs text-zinc-500 mb-1 block">Subject:</label>
+            <Input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="bg-zinc-900 border-zinc-800 text-zinc-100"
+              placeholder="Email subject"
+            />
+          </div>
+
+          {/* Body */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-zinc-500">Message Body:</label>
+              <span className="text-xs text-zinc-600">
+                {wordCount} words · {charCount} chars
+              </span>
+            </div>
+            <Textarea
+              value={draftBody}
+              onChange={(e) => setDraftBody(e.target.value)}
+              className="bg-zinc-900 border-zinc-800 text-zinc-100 font-mono text-sm min-h-[300px] resize-y"
+              placeholder="Email body..."
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="bg-zinc-800 border-zinc-700 text-zinc-300"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            className="bg-blue-500/20 border border-blue-500/40 text-blue-300 hover:bg-blue-500/30"
+          >
+            <Check className="w-4 h-4 mr-1.5" />
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ============ Main Email Tab ============
 
 export function EmailTab() {
@@ -678,6 +852,8 @@ export function EmailTab() {
   const [error, setError] = useState<string | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<EmailDraft | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<EmailDraft | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -825,6 +1001,56 @@ export function EmailTab() {
     setModalOpen(true);
   };
 
+  const handleEditDraft = (draft: EmailDraft) => {
+    setEditDraft(draft);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (updates: {
+    subject?: string;
+    recipientEmail?: string;
+    recipientName?: string;
+    draftBody?: string;
+  }) => {
+    if (!editDraft) return;
+
+    try {
+      const res = await fetch(`/api/emails/drafts/${editDraft.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        // If draft was moved from approved to pending, update state accordingly
+        if (data.movedToPending) {
+          setApprovedDrafts(prev => prev.filter(d => d.id !== editDraft.id));
+          setPendingDrafts(prev => [...prev, data.draft]);
+        } else {
+          // Update the draft in the appropriate list
+          if (editDraft.status === 'pending') {
+            setPendingDrafts(prev =>
+              prev.map(d => d.id === editDraft.id ? data.draft : d)
+            );
+          } else if (editDraft.status === 'approved') {
+            setApprovedDrafts(prev =>
+              prev.map(d => d.id === editDraft.id ? data.draft : d)
+            );
+          }
+        }
+
+        // Refresh to ensure consistency
+        setTimeout(() => fetchData(), 500);
+      } else {
+        console.error('Failed to update draft');
+      }
+    } catch (err) {
+      console.error('Error updating draft:', err);
+    }
+  };
+
   const unreadCount = useMemo(() => inbox.filter(e => e.unread).length, [inbox]);
 
   if (error) {
@@ -908,6 +1134,7 @@ export function EmailTab() {
                         onApprove={handleApprove}
                         onReject={handleReject}
                         onClick={handleDraftClick}
+                        onEdit={handleEditDraft}
                       />
                     ))}
                   </div>
@@ -949,6 +1176,7 @@ export function EmailTab() {
                         draft={draft}
                         onSend={handleSend}
                         onClick={handleDraftClick}
+                        onEdit={handleEditDraft}
                       />
                     ))}
                   </div>
@@ -1090,6 +1318,17 @@ export function EmailTab() {
         onApprove={selectedDraft?.status === 'pending' ? handleApprove : undefined}
         onReject={selectedDraft?.status === 'pending' ? handleReject : undefined}
         onSend={selectedDraft?.status === 'approved' ? handleSend : undefined}
+      />
+
+      {/* Edit Draft Modal */}
+      <EditDraftModal
+        draft={editDraft}
+        open={editModalOpen}
+        onOpenChange={(open) => {
+          setEditModalOpen(open);
+          if (!open) setTimeout(() => setEditDraft(null), 150);
+        }}
+        onSave={handleSaveEdit}
       />
     </>
   );
