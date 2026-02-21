@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -855,7 +855,15 @@ export function EmailTab() {
   const [editDraft, setEditDraft] = useState<EmailDraft | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
-  const fetchData = async () => {
+  // Track when the last action happened to avoid poll overwriting optimistic updates
+  const lastActionRef = useRef<number>(0);
+
+  const fetchData = async (force = false) => {
+    // Skip poll-triggered fetches within 5s of an action (prevents overwriting optimistic updates)
+    if (!force && Date.now() - lastActionRef.current < 5000) {
+      return;
+    }
+
     try {
       setLoading(true);
       
@@ -903,6 +911,7 @@ export function EmailTab() {
 
       if (res.ok) {
         const data = await res.json();
+        lastActionRef.current = Date.now();
         // Optimistic update
         const draft = pendingDrafts.find(d => d.id === id);
         if (draft) {
@@ -929,6 +938,7 @@ export function EmailTab() {
       });
 
       if (res.ok) {
+        lastActionRef.current = Date.now();
         // Optimistic update
         const draft = approvedDrafts.find(d => d.id === id);
         if (draft) {
@@ -957,6 +967,7 @@ export function EmailTab() {
       });
 
       if (res.ok) {
+        lastActionRef.current = Date.now();
         // Optimistic update
         const draft = pendingDrafts.find(d => d.id === id);
         if (draft) {
@@ -1090,7 +1101,7 @@ export function EmailTab() {
             </div>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
             title="Refresh"
           >
