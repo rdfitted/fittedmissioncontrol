@@ -93,9 +93,9 @@ async function listAgentSessions(agentDir: string): Promise<SessionSummary[]> {
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const agentId = params.id;
+  const { id: agentId } = await params;
   const url = new URL(request.url);
   const sessionId = url.searchParams.get('sessionId');
   const limit = parseInt(url.searchParams.get('limit') || '50', 10);

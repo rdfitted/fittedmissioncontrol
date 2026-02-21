@@ -9,10 +9,11 @@ import { AlertsPanel } from '@/components/alerts-panel';
 import { usePanelCollapse } from '@/hooks/use-panel-collapse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, MessageSquare, Activity, Calendar, FileText, Users } from 'lucide-react';
+import { LayoutGrid, MessageSquare, Activity, Calendar, FileText, Users, Mail } from 'lucide-react';
 import { PlanningTab } from '@/components/planning-tab';
 import { ContentTab } from '@/components/content-tab';
 import { CrmTab } from '@/components/crm-tab';
+import { EmailTab } from '@/components/email-tab';
 
 export default function Dashboard() {
   const { collapsed, toggle, setPanel, isHydrated } = usePanelCollapse();
@@ -76,6 +77,13 @@ export default function Dashboard() {
                 CRM
               </TabsTrigger>
               <TabsTrigger 
+                value="emails"
+                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
+              >
+                <Mail className="w-4 h-4" />
+                Emails
+              </TabsTrigger>
+              <TabsTrigger 
                 value="content"
                 className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
               >
@@ -112,6 +120,16 @@ export default function Dashboard() {
             >
               <div className="h-full">
                 <KanbanBoard />
+              </div>
+            </TabsContent>
+
+            {/* Emails Tab */}
+            <TabsContent 
+              value="emails" 
+              className="flex-1 mt-0 overflow-hidden"
+            >
+              <div className="h-full">
+                <EmailTab />
               </div>
             </TabsContent>
 
