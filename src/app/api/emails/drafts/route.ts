@@ -14,19 +14,21 @@ export async function GET(request: NextRequest) {
     const basePath = path.join(process.cwd(), '..', 'data', 'email-drafts');
     
     const pending = await readDraftsFromFolder(path.join(basePath, 'pending'));
+    const approved = await readDraftsFromFolder(path.join(basePath, 'approved'));
     const sent = await readDraftsFromFolder(path.join(basePath, 'sent'));
     const rejected = await readDraftsFromFolder(path.join(basePath, 'rejected'));
     
     return NextResponse.json({
       pending,
+      approved,
       sent,
       rejected,
-      total: pending.length + sent.length + rejected.length,
+      total: pending.length + approved.length + sent.length + rejected.length,
     });
   } catch (error) {
     console.error('Error fetching email drafts:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch drafts', pending: [], sent: [], rejected: [] },
+      { error: 'Failed to fetch drafts', pending: [], approved: [], sent: [], rejected: [] },
       { status: 500 }
     );
   }

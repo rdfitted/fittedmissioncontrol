@@ -5,7 +5,19 @@ import os from 'os';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 
-const CLAWDBOT_AGENTS_DIR = path.join(os.homedir(), '.clawdbot', 'agents');
+// Path resolution - try ~/.openclaw first, fallback to ~/.clawdbot
+async function getAgentsDir(): Promise<string> {
+  const homeDir = os.homedir();
+  const openclawAgents = path.join(homeDir, '.openclaw', 'agents');
+  const clawdbotAgents = path.join(homeDir, '.clawdbot', 'agents');
+  
+  try {
+    await fs.access(openclawAgents);
+    return openclawAgents;
+  } catch {
+    return clawdbotAgents;
+  }
+}
 
 interface SessionMessage {
   role: 'user' | 'assistant' | 'system';
@@ -100,7 +112,8 @@ export async function GET(
   const sessionId = url.searchParams.get('sessionId');
   const limit = parseInt(url.searchParams.get('limit') || '50', 10);
   
-  const agentDir = path.join(CLAWDBOT_AGENTS_DIR, agentId);
+  const agentsDir = await getAgentsDir();
+  const agentDir = path.join(agentsDir, agentId);
   
   // Check if agent exists
   try {

@@ -27,6 +27,8 @@ import {
   Inbox,
   FileText,
   AlertCircle,
+  ExternalLink,
+  CheckCircle,
 } from 'lucide-react';
 import { formatTimestamp } from '@/lib/format-timestamp';
 import ReactMarkdown from 'react-markdown';
@@ -35,9 +37,10 @@ import ReactMarkdown from 'react-markdown';
 
 export interface EmailDraft {
   id: string;
-  status: 'pending' | 'sent' | 'rejected';
+  status: 'pending' | 'approved' | 'sent' | 'rejected';
   createdAt: string;
   updatedAt: string;
+  sentAt?: string;
   query: string;
   recipient: {
     name: string;
@@ -66,9 +69,9 @@ export interface InboxEmail {
   labels: string[];
 }
 
-// ============ Draft Card ============
+// ============ Pending Draft Card ============
 
-function DraftCard({ 
+function PendingDraftCard({ 
   draft, 
   onApprove, 
   onReject,
@@ -99,9 +102,9 @@ function DraftCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+            <Badge variant="outline" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
               <Mail className="w-3 h-3 mr-1" />
-              Pending Approval
+              Pending
             </Badge>
             <span 
               className="text-xs text-zinc-500 cursor-help"
@@ -184,7 +187,7 @@ function DraftCard({
             className="flex-1 bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
           >
             <Check className="w-4 h-4 mr-1.5" />
-            Approve & Create Draft
+            Approve
           </Button>
           <Button
             size="sm"
@@ -196,6 +199,202 @@ function DraftCard({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============ Approved Draft Card ============
+
+function ApprovedDraftCard({ 
+  draft, 
+  onSend,
+  onClick,
+}: { 
+  draft: EmailDraft;
+  onSend: (id: string) => void;
+  onClick: (draft: EmailDraft) => void;
+}) {
+  const timestamp = formatTimestamp(draft.updatedAt);
+
+  return (
+    <div className="p-4 rounded-lg border border-blue-500/30 bg-blue-950/20 hover:border-blue-500/50 transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+              <CheckCircle className="w-3 h-3 mr-1" />
+              Approved
+            </Badge>
+            <span 
+              className="text-xs text-zinc-500 cursor-help"
+              title={timestamp.tooltip}
+            >
+              <Clock className="w-3 h-3 inline mr-1" />
+              {timestamp.display}
+            </span>
+          </div>
+          <h3 className="text-sm font-semibold text-zinc-200">
+            To: {draft.recipient.name}
+          </h3>
+          <p className="text-xs text-zinc-400 truncate">{draft.recipient.email}</p>
+        </div>
+      </div>
+
+      {/* Subject */}
+      <div className="mb-3 pl-4 border-l-2 border-blue-500/30">
+        <p className="text-xs text-zinc-500 mb-0.5">Subject:</p>
+        <p className="text-sm text-zinc-300 font-medium">{draft.subject}</p>
+      </div>
+
+      {/* Preview */}
+      <div 
+        onClick={() => onClick(draft)}
+        className="mb-3 p-3 bg-zinc-900/50 rounded text-xs text-zinc-400 max-h-24 overflow-hidden cursor-pointer hover:bg-zinc-900/70 transition-colors"
+      >
+        <div className="line-clamp-4">{draft.draftBody}</div>
+      </div>
+
+      {/* Gmail Draft ID */}
+      {draft.gmailDraftId && (
+        <div className="mb-3 flex items-center gap-2 text-xs text-blue-400/70">
+          <Mail className="w-3 h-3" />
+          <span className="font-mono text-[10px]">Draft: {draft.gmailDraftId.substring(0, 12)}...</span>
+          <a 
+            href={`https://mail.google.com/mail/u/0/#drafts`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1 hover:text-blue-400 transition-colors"
+          >
+            View in Gmail
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
+
+      {/* Send Action */}
+      <Button
+        size="sm"
+        onClick={() => onSend(draft.id)}
+        className="w-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-semibold"
+      >
+        <Send className="w-4 h-4 mr-1.5" />
+        Send Now
+      </Button>
+    </div>
+  );
+}
+
+// ============ Sent Draft Card ============
+
+function SentDraftCard({ 
+  draft,
+  onClick,
+}: { 
+  draft: EmailDraft;
+  onClick: (draft: EmailDraft) => void;
+}) {
+  const timestamp = formatTimestamp(draft.sentAt || draft.updatedAt);
+
+  return (
+    <div className="p-4 rounded-lg border border-zinc-700 bg-zinc-900/30 hover:border-zinc-600 transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+              <Check className="w-3 h-3 mr-1" />
+              Sent
+            </Badge>
+            <span 
+              className="text-xs text-zinc-500 cursor-help"
+              title={timestamp.tooltip}
+            >
+              <Clock className="w-3 h-3 inline mr-1" />
+              {timestamp.display}
+            </span>
+          </div>
+          <h3 className="text-sm font-semibold text-zinc-300">
+            To: {draft.recipient.name}
+          </h3>
+          <p className="text-xs text-zinc-500 truncate">{draft.recipient.email}</p>
+        </div>
+      </div>
+
+      {/* Subject */}
+      <div className="mb-3 pl-4 border-l-2 border-zinc-700">
+        <p className="text-xs text-zinc-600 mb-0.5">Subject:</p>
+        <p className="text-sm text-zinc-400 font-medium">{draft.subject}</p>
+      </div>
+
+      {/* Preview */}
+      <div 
+        onClick={() => onClick(draft)}
+        className="p-3 bg-zinc-900/30 rounded text-xs text-zinc-500 max-h-20 overflow-hidden cursor-pointer hover:bg-zinc-900/50 transition-colors"
+      >
+        <div className="line-clamp-3">{draft.draftBody}</div>
+      </div>
+    </div>
+  );
+}
+
+// ============ Rejected Draft Card ============
+
+function RejectedDraftCard({ 
+  draft,
+  onClick,
+}: { 
+  draft: EmailDraft;
+  onClick: (draft: EmailDraft) => void;
+}) {
+  const timestamp = formatTimestamp(draft.updatedAt);
+
+  return (
+    <div className="p-4 rounded-lg border border-red-500/20 bg-red-950/10 hover:border-red-500/30 transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500/30">
+              <X className="w-3 h-3 mr-1" />
+              Rejected
+            </Badge>
+            <span 
+              className="text-xs text-zinc-500 cursor-help"
+              title={timestamp.tooltip}
+            >
+              <Clock className="w-3 h-3 inline mr-1" />
+              {timestamp.display}
+            </span>
+          </div>
+          <h3 className="text-sm font-semibold text-zinc-400">
+            To: {draft.recipient.name}
+          </h3>
+          <p className="text-xs text-zinc-500 truncate">{draft.recipient.email}</p>
+        </div>
+      </div>
+
+      {/* Subject */}
+      <div className="mb-3 pl-4 border-l-2 border-red-500/20">
+        <p className="text-xs text-zinc-600 mb-0.5">Subject:</p>
+        <p className="text-sm text-zinc-400 font-medium">{draft.subject}</p>
+      </div>
+
+      {/* Rejection Reason */}
+      {draft.rejectedReason && (
+        <div className="mb-3 p-2 bg-red-950/20 rounded border border-red-500/20">
+          <p className="text-[10px] text-red-400/70 mb-0.5 font-semibold">Reason:</p>
+          <p className="text-xs text-red-300/60 italic">{draft.rejectedReason}</p>
+        </div>
+      )}
+
+      {/* Preview */}
+      <div 
+        onClick={() => onClick(draft)}
+        className="p-3 bg-zinc-900/30 rounded text-xs text-zinc-500 max-h-16 overflow-hidden cursor-pointer hover:bg-zinc-900/50 transition-colors"
+      >
+        <div className="line-clamp-2">{draft.draftBody}</div>
+      </div>
     </div>
   );
 }
@@ -267,43 +466,6 @@ function InboxEmailCard({
   );
 }
 
-// ============ History Item ============
-
-function HistoryItem({ draft }: { draft: EmailDraft }) {
-  const timestamp = formatTimestamp(draft.updatedAt);
-  const isSent = draft.status === 'sent';
-
-  return (
-    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/30 text-xs">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={
-            isSent 
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-              : 'bg-red-500/10 text-red-400 border-red-500/30'
-          }>
-            {isSent ? (
-              <><Check className="w-3 h-3 mr-1" />Sent</>
-            ) : (
-              <><X className="w-3 h-3 mr-1" />Rejected</>
-            )}
-          </Badge>
-          <span className="text-zinc-500">{draft.recipient.name}</span>
-        </div>
-        <span className="text-zinc-600" title={timestamp.tooltip}>
-          {timestamp.display}
-        </span>
-      </div>
-      <p className="text-zinc-400 truncate mb-1">{draft.subject}</p>
-      {draft.rejectedReason && (
-        <p className="text-red-400/70 text-[10px] italic mt-1">
-          Reason: {draft.rejectedReason}
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ============ Draft Preview Modal ============
 
 function DraftPreviewModal({
@@ -312,12 +474,14 @@ function DraftPreviewModal({
   onOpenChange,
   onApprove,
   onReject,
+  onSend,
 }: {
   draft: EmailDraft | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string, reason: string) => void;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string, reason: string) => void;
+  onSend?: (id: string) => void;
 }) {
   const [rejectReason, setRejectReason] = useState('');
 
@@ -325,13 +489,31 @@ function DraftPreviewModal({
 
   const timestamp = formatTimestamp(draft.createdAt);
 
+  const getBadgeClass = () => {
+    switch (draft.status) {
+      case 'pending': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'approved': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'sent': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30';
+    }
+  };
+
+  const getBadgeLabel = () => {
+    switch (draft.status) {
+      case 'pending': return 'Pending';
+      case 'approved': return 'Approved';
+      case 'sent': return 'Sent';
+      case 'rejected': return 'Rejected';
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-3xl">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-              Pending Draft
+            <Badge variant="outline" className={getBadgeClass()}>
+              {getBadgeLabel()}
             </Badge>
             <span className="text-xs text-zinc-500" title={timestamp.tooltip}>
               {timestamp.display}
@@ -381,6 +563,35 @@ function DraftPreviewModal({
             </div>
           )}
 
+          {/* Gmail Draft ID for approved drafts */}
+          {draft.status === 'approved' && draft.gmailDraftId && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Gmail Draft:</p>
+              <div className="flex items-center gap-2 p-2 bg-zinc-900/50 rounded">
+                <code className="text-xs text-blue-400">{draft.gmailDraftId}</code>
+                <a 
+                  href={`https://mail.google.com/mail/u/0/#drafts`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                >
+                  View in Gmail
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* Rejection Reason */}
+          {draft.status === 'rejected' && draft.rejectedReason && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Rejection Reason:</p>
+              <p className="text-sm text-red-300/70 italic p-2 bg-red-950/20 rounded border border-red-500/20">
+                {draft.rejectedReason}
+              </p>
+            </div>
+          )}
+
           {/* Original Thread Preview */}
           {draft.originalThread && (
             <div>
@@ -393,37 +604,62 @@ function DraftPreviewModal({
         </div>
 
         <DialogFooter className="gap-2">
-          <div className="flex-1">
-            <input
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Rejection reason (optional)..."
-              className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300"
-            />
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              onReject(draft.id, rejectReason || 'No reason provided');
-              setRejectReason('');
-              onOpenChange(false);
-            }}
-            className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
-          >
-            <X className="w-4 h-4 mr-1.5" />
-            Reject
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              onApprove(draft.id);
-              onOpenChange(false);
-            }}
-            className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-          >
-            <Check className="w-4 h-4 mr-1.5" />
-            Approve & Create Draft
-          </Button>
+          {draft.status === 'pending' && onApprove && onReject && (
+            <>
+              <div className="flex-1">
+                <input
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Rejection reason (optional)..."
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onReject(draft.id, rejectReason || 'No reason provided');
+                  setRejectReason('');
+                  onOpenChange(false);
+                }}
+                className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+              >
+                <X className="w-4 h-4 mr-1.5" />
+                Reject
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onApprove(draft.id);
+                  onOpenChange(false);
+                }}
+                className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+              >
+                <Check className="w-4 h-4 mr-1.5" />
+                Approve
+              </Button>
+            </>
+          )}
+          {draft.status === 'approved' && onSend && (
+            <Button
+              onClick={() => {
+                onSend(draft.id);
+                onOpenChange(false);
+              }}
+              className="w-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30"
+            >
+              <Send className="w-4 h-4 mr-1.5" />
+              Send Now
+            </Button>
+          )}
+          {(draft.status === 'sent' || draft.status === 'rejected') && (
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="w-full bg-zinc-800 border-zinc-700 text-zinc-300"
+            >
+              Close
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -434,12 +670,12 @@ function DraftPreviewModal({
 
 export function EmailTab() {
   const [pendingDrafts, setPendingDrafts] = useState<EmailDraft[]>([]);
+  const [approvedDrafts, setApprovedDrafts] = useState<EmailDraft[]>([]);
   const [sentDrafts, setSentDrafts] = useState<EmailDraft[]>([]);
   const [rejectedDrafts, setRejectedDrafts] = useState<EmailDraft[]>([]);
   const [inbox, setInbox] = useState<InboxEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
   const [selectedDraft, setSelectedDraft] = useState<EmailDraft | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -460,6 +696,7 @@ export function EmailTab() {
         setError(draftsData.error);
       } else {
         setPendingDrafts(draftsData.pending || []);
+        setApprovedDrafts(draftsData.approved || []);
         setSentDrafts(draftsData.sent || []);
         setRejectedDrafts(draftsData.rejected || []);
         setError(null);
@@ -489,17 +726,49 @@ export function EmailTab() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         // Optimistic update
         const draft = pendingDrafts.find(d => d.id === id);
         if (draft) {
           setPendingDrafts(prev => prev.filter(d => d.id !== id));
-          setSentDrafts(prev => [...prev, { ...draft, status: 'sent', updatedAt: new Date().toISOString() }]);
+          setApprovedDrafts(prev => [...prev, { 
+            ...draft, 
+            status: 'approved', 
+            updatedAt: new Date().toISOString(),
+            gmailDraftId: data.gmailDraftId || draft.gmailDraftId,
+          }]);
         }
       } else {
         console.error('Failed to approve draft');
       }
     } catch (err) {
       console.error('Error approving draft:', err);
+    }
+  };
+
+  const handleSend = async (id: string) => {
+    try {
+      const res = await fetch(`/api/emails/drafts/${id}/send`, {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        // Optimistic update
+        const draft = approvedDrafts.find(d => d.id === id);
+        if (draft) {
+          setApprovedDrafts(prev => prev.filter(d => d.id !== id));
+          setSentDrafts(prev => [...prev, { 
+            ...draft, 
+            status: 'sent', 
+            updatedAt: new Date().toISOString(),
+            sentAt: new Date().toISOString(),
+          }]);
+        }
+      } else {
+        console.error('Failed to send draft');
+      }
+    } catch (err) {
+      console.error('Error sending draft:', err);
     }
   };
 
@@ -557,12 +826,6 @@ export function EmailTab() {
   };
 
   const unreadCount = useMemo(() => inbox.filter(e => e.unread).length, [inbox]);
-  const historyItems = useMemo(() => 
-    [...sentDrafts, ...rejectedDrafts].sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    ),
-    [sentDrafts, rejectedDrafts]
-  );
 
   if (error) {
     return (
@@ -584,12 +847,17 @@ export function EmailTab() {
             <h2 className="text-xl font-bold text-zinc-100">Email Workflow</h2>
             <div className="flex items-center gap-2">
               {pendingDrafts.length > 0 && (
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                   {pendingDrafts.length} pending
                 </Badge>
               )}
-              {unreadCount > 0 && (
+              {approvedDrafts.length > 0 && (
                 <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                  {approvedDrafts.length} approved
+                </Badge>
+              )}
+              {unreadCount > 0 && (
+                <Badge className="bg-zinc-700 text-zinc-300 border-zinc-600">
                   {unreadCount} unread
                 </Badge>
               )}
@@ -604,135 +872,164 @@ export function EmailTab() {
           </button>
         </div>
 
-        {/* Content Grid */}
-        <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
-          {/* Left Column: Pending Drafts + Inbox */}
-          <div className="flex flex-col gap-4 min-h-0">
-            {/* Pending Drafts */}
-            <Card className="bg-zinc-950 border-zinc-800 flex-1 flex flex-col min-h-0">
-              <CardHeader className="pb-3 shrink-0">
-                <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-emerald-400" />
-                  Pending Drafts
-                  {pendingDrafts.length > 0 && (
-                    <Badge variant="outline" className="ml-auto bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                      {pendingDrafts.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 min-h-0">
-                {loading && pendingDrafts.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-zinc-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : pendingDrafts.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-zinc-600">
-                    <Mail className="w-12 h-12 mb-3 opacity-50" />
-                    <p className="text-sm">No pending drafts</p>
-                  </div>
-                ) : (
-                  <ScrollArea className="h-full pr-4">
-                    <div className="space-y-3 pb-4">
-                      {pendingDrafts.map(draft => (
-                        <DraftCard
-                          key={draft.id}
-                          draft={draft}
-                          onApprove={handleApprove}
-                          onReject={handleReject}
-                          onClick={handleDraftClick}
-                        />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Inbox */}
-            <Card className="bg-zinc-950 border-zinc-800 flex-1 flex flex-col min-h-0">
-              <CardHeader className="pb-3 shrink-0">
-                <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
-                  <Inbox className="w-4 h-4 text-blue-400" />
-                  Recent Inbox
-                  {unreadCount > 0 && (
-                    <Badge variant="outline" className="ml-auto bg-blue-500/20 text-blue-400 border-blue-500/30">
-                      {unreadCount} unread
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 min-h-0">
-                {loading && inbox.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-zinc-500">
-                    <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : inbox.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-zinc-600">
-                    <Inbox className="w-12 h-12 mb-3 opacity-50" />
-                    <p className="text-sm">No recent emails</p>
-                  </div>
-                ) : (
-                  <ScrollArea className="h-full pr-4">
-                    <div className="space-y-2 pb-4">
-                      {inbox.map(email => (
-                        <InboxEmailCard
-                          key={email.id}
-                          email={email}
-                          onDraftReply={handleDraftReply}
-                        />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column: Draft History */}
+        {/* Content Grid - 2x2 layout */}
+        <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0">
+          {/* Top Left: Pending Drafts */}
           <Card className="bg-zinc-950 border-zinc-800 flex flex-col min-h-0">
             <CardHeader className="pb-3 shrink-0">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-zinc-400" />
-                  Draft History
-                  {historyItems.length > 0 && (
-                    <Badge variant="outline" className="bg-zinc-800 text-zinc-400 border-zinc-700">
-                      {historyItems.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-                {historyItems.length > 0 && (
-                  <button
-                    onClick={() => setShowHistory(!showHistory)}
-                    className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
-                  >
-                    {showHistory ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </button>
+              <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-yellow-400" />
+                Pending
+                {pendingDrafts.length > 0 && (
+                  <Badge variant="outline" className="ml-auto bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                    {pendingDrafts.length}
+                  </Badge>
                 )}
-              </div>
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 min-h-0">
-              {!showHistory ? (
-                <div className="flex items-center justify-center h-full text-zinc-600">
-                  <p className="text-sm">Click to expand history</p>
+              {loading && pendingDrafts.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-zinc-500">
+                  <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                  Loading...
                 </div>
-              ) : historyItems.length === 0 ? (
+              ) : pendingDrafts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-zinc-600">
-                  <Clock className="w-12 h-12 mb-3 opacity-50" />
-                  <p className="text-sm">No history yet</p>
+                  <Mail className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm">No pending drafts</p>
                 </div>
               ) : (
                 <ScrollArea className="h-full pr-4">
-                  <div className="space-y-2 pb-4">
-                    {historyItems.map(draft => (
-                      <HistoryItem key={draft.id} draft={draft} />
+                  <div className="space-y-3 pb-4">
+                    {pendingDrafts.map(draft => (
+                      <PendingDraftCard
+                        key={draft.id}
+                        draft={draft}
+                        onApprove={handleApprove}
+                        onReject={handleReject}
+                        onClick={handleDraftClick}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Top Right: Approved Drafts */}
+          <Card className="bg-zinc-950 border-zinc-800 flex flex-col min-h-0">
+            <CardHeader className="pb-3 shrink-0">
+              <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-blue-400" />
+                Approved
+                {approvedDrafts.length > 0 && (
+                  <Badge variant="outline" className="ml-auto bg-blue-500/20 text-blue-400 border-blue-500/30">
+                    {approvedDrafts.length}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0">
+              {loading && approvedDrafts.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-zinc-500">
+                  <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                  Loading...
+                </div>
+              ) : approvedDrafts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-zinc-600">
+                  <CheckCircle className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm">No approved drafts</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-3 pb-4">
+                    {approvedDrafts.map(draft => (
+                      <ApprovedDraftCard
+                        key={draft.id}
+                        draft={draft}
+                        onSend={handleSend}
+                        onClick={handleDraftClick}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Bottom Left: Sent Drafts */}
+          <Card className="bg-zinc-950 border-zinc-800 flex flex-col min-h-0">
+            <CardHeader className="pb-3 shrink-0">
+              <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
+                <Send className="w-4 h-4 text-emerald-400" />
+                Sent
+                {sentDrafts.length > 0 && (
+                  <Badge variant="outline" className="ml-auto bg-zinc-800 text-zinc-400 border-zinc-700">
+                    {sentDrafts.length}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0">
+              {loading && sentDrafts.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-zinc-500">
+                  <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                  Loading...
+                </div>
+              ) : sentDrafts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-zinc-600">
+                  <Send className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm">No sent drafts</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-3 pb-4">
+                    {sentDrafts.map(draft => (
+                      <SentDraftCard
+                        key={draft.id}
+                        draft={draft}
+                        onClick={handleDraftClick}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Bottom Right: Rejected Drafts */}
+          <Card className="bg-zinc-950 border-zinc-800 flex flex-col min-h-0">
+            <CardHeader className="pb-3 shrink-0">
+              <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
+                <X className="w-4 h-4 text-red-400" />
+                Rejected
+                {rejectedDrafts.length > 0 && (
+                  <Badge variant="outline" className="ml-auto bg-zinc-800 text-zinc-400 border-zinc-700">
+                    {rejectedDrafts.length}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0">
+              {loading && rejectedDrafts.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-zinc-500">
+                  <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                  Loading...
+                </div>
+              ) : rejectedDrafts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-zinc-600">
+                  <X className="w-12 h-12 mb-3 opacity-50" />
+                  <p className="text-sm">No rejected drafts</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-3 pb-4">
+                    {rejectedDrafts.map(draft => (
+                      <RejectedDraftCard
+                        key={draft.id}
+                        draft={draft}
+                        onClick={handleDraftClick}
+                      />
                     ))}
                   </div>
                 </ScrollArea>
@@ -740,6 +1037,46 @@ export function EmailTab() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Inbox Section - Full width below the grid */}
+        <Card className="bg-zinc-950 border-zinc-800 flex flex-col max-h-64">
+          <CardHeader className="pb-3 shrink-0">
+            <CardTitle className="text-base font-semibold text-zinc-100 flex items-center gap-2">
+              <Inbox className="w-4 h-4 text-zinc-400" />
+              Recent Inbox
+              {unreadCount > 0 && (
+                <Badge variant="outline" className="ml-auto bg-blue-500/20 text-blue-400 border-blue-500/30">
+                  {unreadCount} unread
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 min-h-0">
+            {loading && inbox.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-zinc-500">
+                <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                Loading...
+              </div>
+            ) : inbox.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-zinc-600">
+                <Inbox className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm">No recent emails</p>
+              </div>
+            ) : (
+              <ScrollArea className="h-full pr-4">
+                <div className="grid grid-cols-2 gap-2 pb-4">
+                  {inbox.map(email => (
+                    <InboxEmailCard
+                      key={email.id}
+                      email={email}
+                      onDraftReply={handleDraftReply}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Draft Preview Modal */}
@@ -750,8 +1087,9 @@ export function EmailTab() {
           setModalOpen(open);
           if (!open) setTimeout(() => setSelectedDraft(null), 150);
         }}
-        onApprove={handleApprove}
-        onReject={handleReject}
+        onApprove={selectedDraft?.status === 'pending' ? handleApprove : undefined}
+        onReject={selectedDraft?.status === 'pending' ? handleReject : undefined}
+        onSend={selectedDraft?.status === 'approved' ? handleSend : undefined}
       />
     </>
   );

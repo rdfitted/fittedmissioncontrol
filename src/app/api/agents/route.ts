@@ -4,10 +4,34 @@ import path from 'path';
 import os from 'os';
 import type { AgentSession, AgentsResponse } from '@/lib/api-types';
 
-// Path configurations - updated for new Clawdbot agent structure
-const CLAWDBOT_DIR = path.join(os.homedir(), '.clawdbot');
-const CLAWDBOT_CONFIG = path.join(CLAWDBOT_DIR, 'clawdbot.json');
-const CLAWDBOT_AGENTS_DIR = path.join(CLAWDBOT_DIR, 'agents');
+// Path configurations - updated for OpenClaw directory structure
+// Try ~/.openclaw first, fallback to ~/.clawdbot for backward compatibility
+async function getClawdirPaths() {
+  const homeDir = os.homedir();
+  const openclawDir = path.join(homeDir, '.openclaw');
+  const clawdbotDir = path.join(homeDir, '.clawdbot');
+  
+  let baseDir = openclawDir;
+  try {
+    await fs.access(openclawDir);
+  } catch {
+    baseDir = clawdbotDir;
+  }
+  
+  // Try openclaw.json first, then clawdbot.json
+  let configPath = path.join(baseDir, 'openclaw.json');
+  try {
+    await fs.access(configPath);
+  } catch {
+    configPath = path.join(baseDir, 'clawdbot.json');
+  }
+  
+  return {
+    baseDir,
+    configPath,
+    agentsDir: path.join(baseDir, 'agents'),
+  };
+}
 
 // List of all agent IDs to check for sessions
 const ALL_AGENT_IDS = ['main', 'knox', 'vault', 'aria', 'scout', 'rigor', 'sterling', 'pulse', 'reach', 'iris', 'recon', 'slate'];
@@ -174,11 +198,12 @@ const HIERARCHY: Record<string, string> = {
 export async function GET() {
   try {
     const now = Date.now();
+    const paths = await getClawdirPaths();
     
     // Read Clawdbot config for agent list
     let config: ClawdbotConfig = {};
     try {
-      const configContent = await fs.readFile(CLAWDBOT_CONFIG, 'utf-8');
+      const configContent = await fs.readFile(paths.configPath, 'utf-8');
       config = JSON.parse(configContent);
     } catch (err) {
       console.warn('Could not read clawdbot config:', err);
@@ -191,7 +216,7 @@ export async function GET() {
     let sessions: Record<string, SessionData> = {};
     for (const agentId of ALL_AGENT_IDS) {
       try {
-        const sessionsPath = path.join(CLAWDBOT_AGENTS_DIR, agentId, 'sessions', 'sessions.json');
+        const sessionsPath = path.join(paths.agentsDir, agentId, 'sessions', 'sessions.json');
         const sessionsContent = await fs.readFile(sessionsPath, 'utf-8');
         const agentSessions = JSON.parse(sessionsContent);
         // Merge sessions, newer timestamps win
@@ -242,7 +267,7 @@ export async function GET() {
         role: 'Chief of Staff / Coordinator',
         reportsTo: null,
         model: defaultModel,
-        agentDir: path.join(CLAWDBOT_AGENTS_DIR, 'main'),
+        agentDir: path.join(paths.agentsDir, 'main'),
       });
     }
     
