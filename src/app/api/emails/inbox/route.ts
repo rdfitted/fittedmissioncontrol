@@ -20,24 +20,40 @@ export async function GET(request: NextRequest) {
     const response = await fetch(`${gwUrl}?${params.toString()}`);
     const result = await response.json();
 
-    if (!result.success) {
+    if (!result.success && !result.ok) {
       throw new Error(result.error || 'Gmail API returned error');
     }
 
     // Transform Gmail API response to our format
-    const emails = (result.emails || []).map((email: any) => ({
-      id: email.id || email.messageId,
-      threadId: email.threadId || email.id,
-      from: {
-        name: email.from?.name || email.fromName || 'Unknown',
-        email: email.from?.email || email.fromEmail || '',
-      },
-      subject: email.subject || '(No subject)',
-      snippet: email.snippet || email.preview || '',
-      date: email.date || email.receivedAt || new Date().toISOString(),
-      unread: email.unread !== false, // Default to true
-      labels: email.labels || [],
-    }));
+    const emails = (result.messages || result.emails || []).map((email: any) => {
+      // Parse "from" — can be string like "Name <email>" or object
+      let fromName = 'Unknown';
+      let fromEmail = '';
+      if (typeof email.from === 'string') {
+        const match = email.from.match(/^(.+?)\s*<(.+?)>$/);
+        if (match) {
+          fromName = match[1].trim();
+          fromEmail = match[2].trim();
+        } else {
+          fromName = email.from;
+          fromEmail = email.from;
+        }
+      } else if (email.from) {
+        fromName = email.from.name || 'Unknown';
+        fromEmail = email.from.email || '';
+      }
+
+      return {
+        id: email.id || email.messageId,
+        threadId: email.threadId || email.id,
+        from: { name: fromName, email: fromEmail },
+        subject: email.subject || '(No subject)',
+        snippet: email.snippet || email.preview || '',
+        date: email.date || email.receivedAt || new Date().toISOString(),
+        unread: email.isUnread !== false,
+        labels: (email.labels || []).filter(Boolean),
+      };
+    });
 
     return NextResponse.json({
       emails,
