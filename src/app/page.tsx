@@ -9,13 +9,10 @@ import { AlertsPanel } from '@/components/alerts-panel';
 import { usePanelCollapse } from '@/hooks/use-panel-collapse';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, MessageSquare, Activity, Calendar, FileText, Users, Mail, User, Building2 } from 'lucide-react';
+import { LayoutGrid, MessageSquare, Activity, Calendar, FileText, Database } from 'lucide-react';
 import { PlanningTab } from '@/components/planning-tab';
 import { ContentTab } from '@/components/content-tab';
-import { CrmTab } from '@/components/crm-tab';
-import { EmailTab } from '@/components/email-tab';
-import { PeopleTab } from '@/components/people-tab';
-import { CompaniesTab } from '@/components/companies-tab';
+import { CrmHub } from '@/components/crm-hub';
 
 export default function Dashboard() {
   const { collapsed, toggle, setPanel, isHydrated } = usePanelCollapse();
@@ -75,29 +72,8 @@ export default function Dashboard() {
                 value="crm"
                 className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
               >
-                <Users className="w-4 h-4" />
+                <Database className="w-4 h-4" />
                 CRM
-              </TabsTrigger>
-              <TabsTrigger 
-                value="people"
-                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
-              >
-                <User className="w-4 h-4" />
-                People
-              </TabsTrigger>
-              <TabsTrigger 
-                value="companies"
-                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
-              >
-                <Building2 className="w-4 h-4" />
-                Companies
-              </TabsTrigger>
-              <TabsTrigger 
-                value="emails"
-                className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 gap-2"
-              >
-                <Mail className="w-4 h-4" />
-                Emails
               </TabsTrigger>
               <TabsTrigger 
                 value="content"
@@ -139,43 +115,13 @@ export default function Dashboard() {
               </div>
             </TabsContent>
 
-            {/* Emails Tab */}
-            <TabsContent 
-              value="emails" 
-              className="flex-1 mt-0 overflow-hidden"
-            >
-              <div className="h-full">
-                <EmailTab />
-              </div>
-            </TabsContent>
-
             {/* CRM Tab */}
             <TabsContent 
               value="crm" 
               className="flex-1 mt-0 overflow-hidden"
             >
               <div className="h-full">
-                <CrmTab />
-              </div>
-            </TabsContent>
-
-            {/* People Tab */}
-            <TabsContent 
-              value="people" 
-              className="flex-1 mt-0 overflow-hidden"
-            >
-              <div className="h-full">
-                <PeopleTab />
-              </div>
-            </TabsContent>
-
-            {/* Companies Tab */}
-            <TabsContent 
-              value="companies" 
-              className="flex-1 mt-0 overflow-hidden"
-            >
-              <div className="h-full">
-                <CompaniesTab />
+                <CrmHub />
               </div>
             </TabsContent>
 
