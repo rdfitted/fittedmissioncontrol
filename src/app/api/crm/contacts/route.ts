@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import initSqlJs from 'sql.js';
-
-const DB_PATH = path.join(process.cwd(), '..', 'data', 'crm-intel.db');
+import { openDB, dbExists, saveDB } from '@/lib/sql';
 
 interface Contact {
   id: number;
@@ -29,19 +25,11 @@ export async function GET(request: NextRequest) {
     const minScore = searchParams.get('minScore');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
 
-    // Check if database exists
-    try {
-      await fs.access(DB_PATH);
-    } catch {
-      return NextResponse.json({ 
-        contacts: [], 
-        note: 'CRM database not yet initialized' 
-      });
+    if (!(await dbExists())) {
+      return NextResponse.json({ contacts: [], note: 'CRM database not yet initialized' });
     }
 
-    const buffer = await fs.readFile(DB_PATH);
-    const SQL = await initSqlJs();
-    const db = new SQL.Database(buffer);
+    const db = await openDB();
 
     // Build query
     let query = `
@@ -125,18 +113,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name and email required' }, { status: 400 });
     }
 
-    // Check if database exists
-    try {
-      await fs.access(DB_PATH);
-    } catch {
-      return NextResponse.json({ 
-        error: 'CRM database not yet initialized' 
-      }, { status: 503 });
+    if (!(await dbExists())) {
+      return NextResponse.json({ error: 'CRM database not yet initialized' }, { status: 503 });
     }
 
-    const buffer = await fs.readFile(DB_PATH);
-    const SQL = await initSqlJs();
-    const db = new SQL.Database(buffer);
+    const db = await openDB();
 
     // Find or create company if provided
     let companyId: number | null = null;
@@ -171,10 +152,8 @@ export async function POST(request: NextRequest) {
     const contactId = getLastId.getAsObject().id as number;
     getLastId.free();
 
-    // Save database
-    const data = db.export();
+    await saveDB(db);
     db.close();
-    await fs.writeFile(DB_PATH, data);
 
     return NextResponse.json({ 
       success: true, 

@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import initSqlJs from 'sql.js';
-
-const DB_PATH = path.join(process.cwd(), '..', 'data', 'crm-intel.db');
+import { openDB, dbExists } from '@/lib/sql';
 
 interface ContactDetail {
   id: number;
@@ -42,18 +38,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid contact ID' }, { status: 400 });
     }
 
-    // Check if database exists
-    try {
-      await fs.access(DB_PATH);
-    } catch {
-      return NextResponse.json({ 
-        error: 'CRM database not yet initialized' 
-      }, { status: 404 });
+    if (!(await dbExists())) {
+      return NextResponse.json({ error: 'CRM database not yet initialized' }, { status: 404 });
     }
 
-    const buffer = await fs.readFile(DB_PATH);
-    const SQL = await initSqlJs();
-    const db = new SQL.Database(buffer);
+    const db = await openDB();
 
     // Get contact details
     const contactStmt = db.prepare(`
@@ -93,10 +82,10 @@ export async function GET(
       SELECT 
         r.id,
         c2.name,
-        r.relationship_type as type
+        r.type
       FROM relationships r
-      JOIN contacts c2 ON r.related_contact_id = c2.id
-      WHERE r.contact_id = ?
+      JOIN contacts c2 ON r.to_contact_id = c2.id
+      WHERE r.from_contact_id = ?
     `);
     relStmt.bind([contactId]);
     while (relStmt.step()) {
@@ -120,13 +109,13 @@ export async function GET(
     const intStmt = db.prepare(`
       SELECT 
         id,
-        interaction_type as type,
+        type,
         subject,
-        interaction_date as date,
-        notes
+        date,
+        summary as notes
       FROM interactions
       WHERE contact_id = ?
-      ORDER BY interaction_date DESC
+      ORDER BY date DESC
       LIMIT 20
     `);
     intStmt.bind([contactId]);

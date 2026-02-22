@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import initSqlJs from 'sql.js';
-
-const DB_PATH = path.join(process.cwd(), '..', 'data', 'crm-intel.db');
+import { openDB, dbExists } from '@/lib/sql';
 
 interface Company {
   id: number;
@@ -26,19 +22,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.toLowerCase();
     const limit = parseInt(searchParams.get('limit') || '100', 10);
 
-    // Check if database exists
-    try {
-      await fs.access(DB_PATH);
-    } catch {
-      return NextResponse.json({ 
-        companies: [], 
-        note: 'CRM database not yet initialized' 
-      });
+    if (!(await dbExists())) {
+      return NextResponse.json({ companies: [], note: 'CRM database not yet initialized' });
     }
 
-    const buffer = await fs.readFile(DB_PATH);
-    const SQL = await initSqlJs();
-    const db = new SQL.Database(buffer);
+    const db = await openDB();
 
     // Build query
     let query = `

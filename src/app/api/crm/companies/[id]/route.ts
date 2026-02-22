@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import initSqlJs from 'sql.js';
-
-const DB_PATH = path.join(process.cwd(), '..', 'data', 'crm-intel.db');
+import { openDB, dbExists } from '@/lib/sql';
 
 interface CompanyDetail {
   id: number;
@@ -45,18 +41,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid company ID' }, { status: 400 });
     }
 
-    // Check if database exists
-    try {
-      await fs.access(DB_PATH);
-    } catch {
-      return NextResponse.json({ 
-        error: 'CRM database not yet initialized' 
-      }, { status: 404 });
+    if (!(await dbExists())) {
+      return NextResponse.json({ error: 'CRM database not yet initialized' }, { status: 404 });
     }
 
-    const buffer = await fs.readFile(DB_PATH);
-    const SQL = await initSqlJs();
-    const db = new SQL.Database(buffer);
+    const db = await openDB();
 
     // Get company details
     const companyStmt = db.prepare(`
@@ -129,13 +118,13 @@ export async function GET(
       SELECT 
         i.id,
         c.name as contact_name,
-        i.interaction_type as type,
+        i.type,
         i.subject,
-        i.interaction_date as date
+        i.date
       FROM interactions i
       JOIN contacts c ON i.contact_id = c.id
       WHERE c.company_id = ?
-      ORDER BY i.interaction_date DESC
+      ORDER BY i.date DESC
       LIMIT 20
     `);
     intStmt.bind([companyId]);
